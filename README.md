@@ -32,16 +32,26 @@ Lagre PDF-fakturaen fra Ustekveikja Energi i undermappen **`Faktura/`**. Scripte
 ### 3. Kjør scriptet
 
 ```bash
-# Alle tilgjengelige måneder:
+# Alle tilgjengelige måneder, standardmapper:
 python beregn_lading.py
 
 # Avgrenset tidsrom (f.eks. Q1 2026):
 python beregn_lading.py 2026.01 2026.03
+
+# Med egendefinerte mappestier:
+python beregn_lading.py 2026.01 2026.04 -F C:\Data\Faktura -C C:\Data\CloudCharge
+
+# Vis alle valg:
+python beregn_lading.py --help
 ```
 
-Scriptet kombinerer alle CSV-filer i `CloudCharge/` og alle PDF-er i `Faktura/` automatisk. Legg gjerne inn flere månedsfiler for et helt kvartal.
+Scriptet kombinerer alle CSV-filer i CloudCharge-mappen og alle PDF-er i Faktura-mappen automatisk.
 
-Valgfrie periodeargumenter (`YYYY.MM YYYY.MM`) begrenser rapporten til måneder innenfor det angitte tidsrommet (inklusiv begge endepunkter).
+| Parameter | Beskrivelse |
+|---|---|
+| `YYYY.MM YYYY.MM` | Valgfri periode (fra og med, til og med). Begge må oppgis eller ingen. |
+| `-F MAPPE` | Sti til mappe med PDF-fakturaer (standard: `Faktura/` ved siden av scriptet) |
+| `-C MAPPE` | Sti til mappe med CloudCharge CSV-filer (standard: `CloudCharge/` ved siden av scriptet) |
 
 ### 4. Hent output
 

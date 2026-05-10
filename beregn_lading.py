@@ -18,6 +18,7 @@ Strømpriser leses fra PDF-fakturaer. Eldre måneder uten PDF-faktura
 hentes fra Excel-fanen Strømpriser som fallback.
 """
 
+import argparse
 import os
 import glob
 import re
@@ -144,7 +145,7 @@ def les_pris_fra_pdf(filsti):
     return (år, måned_nr, totalt_pr_kwh)
 
 
-def les_strompriser():
+def les_strompriser(faktura_mappe):
     """
     Leser strømpriser fra PDF-fakturaer (primær) og Excel (fallback).
     PDF-priser overstyrer Excel for samme måned.
@@ -161,7 +162,7 @@ def les_strompriser():
 
     # Primær: PDF-fakturaer i Faktura-mappen
     pdf_priser = {}
-    pdf_filer = sorted(glob.glob(os.path.join(FAKTURA_MAPPE, "*.pdf")))
+    pdf_filer = sorted(glob.glob(os.path.join(faktura_mappe, "*.pdf")))
     pdf_feil = []
     for filsti in pdf_filer:
         resultat = les_pris_fra_pdf(filsti)
@@ -217,12 +218,12 @@ def norsk_float(verdi):
     return float(str(verdi).replace("\xa0", "").replace(" ", "").replace(",", "."))
 
 
-def les_csv_filer():
-    filer = sorted(glob.glob(os.path.join(CLOUDCHARGE_MAPPE, "*.csv")))
+def les_csv_filer(cloudcharge_mappe):
+    filer = sorted(glob.glob(os.path.join(cloudcharge_mappe, "*.csv")))
     if not filer:
         raise FileNotFoundError(
-            f"Ingen CSV-filer funnet i {CLOUDCHARGE_MAPPE}. "
-            "Legg CloudCharge-fil(er) i mappen CloudCharge/ og prøv igjen."
+            f"Ingen CSV-filer funnet i {cloudcharge_mappe}. "
+            "Legg CloudCharge-fil(er) i mappen og prøv igjen."
         )
 
     print(f"  {len(filer)} CSV-fil(er) fra CloudCharge:")
@@ -266,17 +267,22 @@ def legg_til_summer(resultater):
 
 # ── Hovedlogikk ────────────────────────────────────────────────────────────
 
-def beregn(fra=None, til=None):
+def beregn(fra=None, til=None, faktura_mappe=None, cloudcharge_mappe=None):
+    faktura_mappe = faktura_mappe or FAKTURA_MAPPE
+    cloudcharge_mappe = cloudcharge_mappe or CLOUDCHARGE_MAPPE
+
     if fra and til:
         print(f"Periode: {fra[0]}.{fra[1]:02d} – {til[0]}.{til[1]:02d}")
+    print(f"Faktura-mappe    : {faktura_mappe}")
+    print(f"CloudCharge-mappe: {cloudcharge_mappe}")
     print("Leser strømpriser (PDF + Excel)...")
-    priser = les_strompriser()
+    priser = les_strompriser(faktura_mappe)
 
     print("Leser beboerregister fra Excel...")
     beboere = les_beboere()
 
     print("Leser CloudCharge CSV...")
-    data = les_csv_filer()
+    data = les_csv_filer(cloudcharge_mappe)
 
     data["Energi_kWh"] = data["Energi (kWh)"].apply(norsk_float)
     data["Sluttdato_dt"] = pd.to_datetime(data["Sluttdato"], format="%Y-%m-%d", errors="coerce")
@@ -481,31 +487,51 @@ def skriv_excel(resultater, filsti, første_måned, siste_måned, beboere):
     wb.save(filsti)
 
 
-def parse_periode(args):
-    """
-    Leser valgfrie periodeargumenter på formen YYYY.MM YYYY.MM.
-    Returnerer (fra_tuple, til_tuple) eller (None, None) om ingen er oppgitt.
-    """
-    if len(args) == 0:
-        return None, None
-    if len(args) != 2:
-        print("Bruk: python beregn_lading.py [YYYY.MM YYYY.MM]")
-        print("Eksempel: python beregn_lading.py 2026.01 2026.04")
-        raise SystemExit(1)
-    fra_str, til_str = args
-    try:
-        fra = tuple(int(x) for x in fra_str.split("."))
-        til = tuple(int(x) for x in til_str.split("."))
-        assert len(fra) == 2 and len(til) == 2
-        assert 1 <= fra[1] <= 12 and 1 <= til[1] <= 12
-        assert fra <= til
-    except Exception:
-        print(f"Ugyldig periode: '{fra_str}' '{til_str}'. Forventet format: YYYY.MM YYYY.MM")
-        raise SystemExit(1)
-    return fra, til
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Beregn strømkostnader for elbil-ladepunkter og generer Excel-rapport.",
+        epilog="Eksempel: python beregn_lading.py 2026.01 2026.04 -F /data/Faktura -C /data/CSV",
+    )
+    parser.add_argument(
+        "fra", nargs="?", metavar="YYYY.MM",
+        help="Fra-måned (inklusiv). Må oppgis sammen med TIL.",
+    )
+    parser.add_argument(
+        "til", nargs="?", metavar="YYYY.MM",
+        help="Til-måned (inklusiv). Må oppgis sammen med FRA.",
+    )
+    parser.add_argument(
+        "-F", "--faktura", metavar="MAPPE",
+        help=f"Sti til mappe med PDF-fakturaer (standard: {FAKTURA_MAPPE})",
+    )
+    parser.add_argument(
+        "-C", "--cloudcharge", metavar="MAPPE",
+        help=f"Sti til mappe med CloudCharge CSV-filer (standard: {CLOUDCHARGE_MAPPE})",
+    )
+    args = parser.parse_args()
+
+    # Valider periode
+    fra = til = None
+    if args.fra or args.til:
+        if not (args.fra and args.til):
+            parser.error("Både FRA og TIL må oppgis, eller ingen av dem.")
+        try:
+            fra = tuple(int(x) for x in args.fra.split("."))
+            til = tuple(int(x) for x in args.til.split("."))
+            assert len(fra) == 2 and len(til) == 2
+            assert 1 <= fra[1] <= 12 and 1 <= til[1] <= 12
+            assert fra <= til
+        except Exception:
+            parser.error(f"Ugyldig periode: '{args.fra}' '{args.til}'. Forventet format: YYYY.MM")
+
+    # Valider mappestier
+    for flagg, sti in [("-F", args.faktura), ("-C", args.cloudcharge)]:
+        if sti and not os.path.isdir(sti):
+            parser.error(f"{flagg}: '{sti}' er ikke en gyldig mappe.")
+
+    return fra, til, args.faktura, args.cloudcharge
 
 
 if __name__ == "__main__":
-    import sys
-    fra, til = parse_periode(sys.argv[1:])
-    beregn(fra, til)
+    fra, til, faktura_mappe, cloudcharge_mappe = parse_args()
+    beregn(fra, til, faktura_mappe, cloudcharge_mappe)

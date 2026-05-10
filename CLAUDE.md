@@ -51,11 +51,18 @@ Fane **Beboere**:
 ## Kjøring
 
 ```
-python beregn_lading.py                    # alle tilgjengelige måneder
-python beregn_lading.py 2026.01 2026.04   # kun januar–april 2026
+python beregn_lading.py                                         # alle måneder, standardmapper
+python beregn_lading.py 2026.01 2026.04                        # kun januar–april 2026
+python beregn_lading.py 2026.01 2026.04 -F <sti> -C <sti>     # egne mappestier
 ```
 
-Periodeargumentene er valgfrie og på formen `YYYY.MM YYYY.MM` (fra og med, til og med). Feil format gir feilmelding og avslutter.
+| Argument | Beskrivelse |
+|---|---|
+| `YYYY.MM YYYY.MM` | Valgfri periode. Begge må oppgis eller ingen. |
+| `-F MAPPE` | Sti til PDF-fakturamappe (standard: `Faktura/` ved siden av scriptet) |
+| `-C MAPPE` | Sti til CloudCharge CSV-mappe (standard: `CloudCharge/` ved siden av scriptet) |
+
+Ugyldig mappe eller feil periodeformat gir feilmelding og avslutter. Bruk `--help` for full oversikt.
 
 ## Output
 Excel-fil med navn:
