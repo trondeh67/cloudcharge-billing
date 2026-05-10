@@ -83,6 +83,15 @@ def les_pris_fra_pdf(filsti):
               f"(forventet '{FORVENTET_ANLEGGSREFERANSE}') — hopper over.")
         return None
 
+    # Sjekk for effektbasert tariff (kW-ledd) — kan ikke beregnes automatisk
+    if re.search(
+        r"^Effekt\s+\d{2}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}\s+[\d ,]+kW\b",
+        tekst, re.MULTILINE,
+    ):
+        print(f"  ! {filnavn}: Inneholder effektbasert tariff (kW-ledd) — "
+              f"må behandles manuelt. Måneden utelates fra rapporten.")
+        return None
+
     # Periode, totalt forbruk og spotpris fra Strømpris-linjen
     m = re.search(
         r"Strømpris\s+(\d{2})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2})\s+"

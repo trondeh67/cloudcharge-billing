@@ -36,6 +36,7 @@ totalt_pr_kWh    = spot_m_mva − strømstøtte_øre + nettleie_m_mva
 
 - Felter som leses fra PDF: `Strømpris` (spotpris + forbruk), `Midlertidig strømstønad for borettslag` (nettobeløp), `Energiledd hverdag` (øre/kWh), `Elavgift` (øre/kWh)
 - Leverandør: Ustekveikja Energi AS — regex-mønstre er tilpasset dette faktura-formatet
+- Fakturaer med effektbasert tariff (linje med `Effekt ... kW`) avvises automatisk med varsel — prisen må legges inn manuelt i Excel-arket (fane Strømpriser)
 
 ### Excel: Elbillading Strøm+Beboere.xlsx (fallback for eldre måneder)
 Fane **Strømpriser**:

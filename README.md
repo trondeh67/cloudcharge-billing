@@ -147,4 +147,5 @@ Påslaget er definert som konstanten `PRISPÅSLAG = 1.20` øverst i `beregn_ladi
 | Måned mangler både PDF-faktura og Excel-pris | Måneden utelates, melding i konsollen |
 | PDF kan ikke leses/parses | Advarsel i konsollen, faller tilbake på Excel |
 | PDF har feil Anleggsreferanse | Advarsel i konsollen, fakturaen hoppes over |
+| PDF inneholder effektbasert tariff (kW-ledd) | Advarsel i konsollen — måneden må legges inn manuelt i Excel-arket |
 | Feil format på periodeargumenter | Feilmelding med eksempel, scriptet avslutter |
