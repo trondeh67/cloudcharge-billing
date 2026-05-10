@@ -81,19 +81,15 @@ Scriptet leser følgende felter fra Ustekveikja Energi-fakturaen og beregner tot
 
 | Felt i PDF | Brukes til |
 |---|---|
-| Strømpris — øre/kWh | Spotpris eks. MVA |
-| Strømpris — kWh | Totalt forbruk (for strømstøtte-beregning) |
-| Midlertidig strømstønad for borettslag — Nettobeløp | Strømstøtte i kr |
-| Energiledd hverdag — øre/kWh | Nettleie-komponent |
-| Elavgift — øre/kWh | Nettleie-komponent |
+| Strømpris — periode og kWh | Faktureringsmåned og totalt forbruk |
+| Total sum | Fakturabeløp inkl. MVA |
 
 **Formel:**
 ```
-spot_m_mva      = spotpris × 1,25
-strømstøtte_øre = strømstøtte_kr / forbruk_kWh × 100
-nettleie_m_mva  = (energiledd_hverdag + elavgift) × 1,25
-totalt_pr_kWh   = spot_m_mva − strømstøtte_øre + nettleie_m_mva
+totalt_pr_kWh = Total sum (kr) / Strømpris forbruk (kWh) × 100
 ```
+
+Denne tilnærmingen er robust mot tariffendringer (effektledd, støtteordninger o.l.) — alt er allerede reflektert i totalbeløpet.
 
 For måneder uten PDF-faktura (historiske data) hentes prisen fra fanen **Strømpriser** i Excel-filen.
 

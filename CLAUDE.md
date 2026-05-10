@@ -28,13 +28,10 @@ Fakturering_*.xlsx                # IKKE i git — output til regnskapsfører
 - Scriptet leser automatisk alle PDF-er og beregner `Totalt pr/kWh` etter formelen:
 
 ```
-spot_m_mva       = spotpris (øre/kWh eks. MVA) × 1,25
-strømstøtte_øre  = strømstøtte_kr / forbruk_kWh × 100
-nettleie_m_mva   = (energiledd_hverdag + elavgift) × 1,25
-totalt_pr_kWh    = spot_m_mva − strømstøtte_øre + nettleie_m_mva
+totalt_pr_kWh = Total fakturabeløp inkl. MVA (kr) / Strømpris forbruk (kWh) × 100
 ```
 
-- Felter som leses fra PDF: `Strømpris` (spotpris + forbruk), `Midlertidig strømstønad for borettslag` (nettobeløp), `Energiledd hverdag` (øre/kWh), `Elavgift` (øre/kWh)
+- Felter som leses fra PDF: `Strømpris` (periode + forbruk kWh), `Total sum` (fakturabeløp inkl. MVA)
 - Leverandør: Ustekveikja Energi AS — regex-mønstre er tilpasset dette faktura-formatet
 - Fakturaer med effektbasert tariff (linje med `Effekt ... kW`) avvises automatisk med varsel — prisen må legges inn manuelt i Excel-arket (fane Strømpriser)
 

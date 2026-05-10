@@ -57,16 +57,8 @@ FORVENTET_ANLEGGSREFERANSE = "Strøm Fellesareal"
 
 def les_pris_fra_pdf(filsti):
     """
-    Leser strømpriskomponenter fra Ustekveikja Energi-faktura (PDF) og
-    beregner Totalt pr/kWh etter samme formel som Excel-regnearket:
-
-        spot_m_mva = spotpris × 1.25
-        strømstøtte_øre = strømstøtte_kr / forbruk_kwh × 100
-        nettleie_m_mva = (energiledd_hverdag + elavgift) × 1.25
-        totalt = spot_m_mva − strømstøtte_øre + nettleie_m_mva
-
-    Returnerer (år, måned, totalt_pr_kwh) eller None ved parsefeil eller
-    feil anleggsreferanse.
+    Beregner totalpris per kWh som: Total fakturabeløp inkl. MVA / Strømpris kWh × 100.
+    Returnerer (år, måned, totalt_pr_kwh) eller None ved parsefeil eller feil anleggsreferanse.
     """
     filnavn = os.path.basename(filsti)
     with pdfplumber.open(filsti) as pdf:
@@ -92,10 +84,10 @@ def les_pris_fra_pdf(filsti):
               f"må behandles manuelt. Måneden utelates fra rapporten.")
         return None
 
-    # Periode, totalt forbruk og spotpris fra Strømpris-linjen
+    # Periode og forbruk fra Strømpris-linjen
     m = re.search(
         r"Strømpris\s+(\d{2})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2})\s+"
-        r"([\d ,]+,\d+)\s+kWh\s+([\d,]+)\s+øre/kWh",
+        r"([\d ,]+,\d+)\s+kWh",
         tekst,
     )
     if not m:
@@ -105,52 +97,24 @@ def les_pris_fra_pdf(filsti):
     år = 2000 + int(m.group(3))
     slutt_måned = int(m.group(5))
     slutt_år = 2000 + int(m.group(6))
-    forbruk_kwh = _sf(m.group(7))   # totalt forbruk — nevner for strømstøtte-beregning
-    spot_ore = _sf(m.group(8))
+    forbruk_kwh = _sf(m.group(7))
 
-    # Beregn månedsdifferanse — normal faktura: start og slutt er én måned fra hverandre
-    # (f.eks. 01.04.26–01.05.26). Advar kun ved mer enn 1 måneds differanse.
+    # Normal faktura: start og slutt er én måned fra hverandre (f.eks. 01.04.26–01.05.26).
     if (slutt_år * 12 + slutt_måned) - (år * 12 + måned_nr) > 1:
         print(f"  ! {filnavn}: Perioden dekker mer enn én måned — kontroller fakturaen manuelt.")
         return None
 
-    # Dato-prefix brukt for å låse alle linjesøk til riktig faktureringsperiode.
-    # Fakturaer med korreksjonsrader for andre måneder (f.eks. etterregning) inneholder
-    # linjer for flere perioder — uten låsing plukkes feil linje opp.
-    dato = rf"\d{{2}}\.{måned_nr:02d}\.{år % 100:02d}"
+    # Total fakturabeløp inkl. MVA — "å betale"-linjen finnes i alle fakturaformater
+    m = re.search(r"[Åå] betale\s+(\d[\d \xa0]*,\d{2})\s+kr", tekst)
+    if not m:
+        print(f"  ! {filnavn}: Fant ikke totalbeløp — hopper over.")
+        return None
+    total_kr = _sf(m.group(1))
 
-    # Strømstøtte: nettobeløp i kr delt på totalt forbruk kWh (fra Strømpris-linja).
-    # "borettslag" er valgfritt: eldre fakturaer har det på samme linje som datoen,
-    # nyere fakturaer har det på neste linje (da fanget opp av \s+).
-    # Perioden låses slik at korreksjonsposter for andre måneder ikke plukkes opp.
-    m = re.search(
-        rf"Midlertidig str[øo]mst[øo]nad for(?:\s+borettslag)?\s+"
-        rf"{dato}-\d{{2}}\.\d{{2}}\.\d{{2}}\s+"
-        rf"-[\d ,]+kWh\s+[\d,]+\s+øre/kWh\s+\d+\s+(-[\d ]+,\d{{2}})(?=\s)",
-        tekst,
-    )
-    stonad_kr = abs(_sf(m.group(1))) if m else 0.0
-    stromstotte_ore = (stonad_kr / forbruk_kwh * 100) if forbruk_kwh > 0 else 0.0
-
-    # Energiledd hverdag øre/kWh — låst til riktig periode
-    m = re.search(
-        rf"Energiledd hverdag[^\n]*?{dato}-\d{{2}}\.\d{{2}}\.\d{{2}}[^\n]*?kWh\s+([\d,]+)\s+øre/kWh",
-        tekst,
-    )
-    energiledd_ore = _sf(m.group(1)) if m else 0.0
-
-    # Elavgift øre/kWh — låst til riktig periode
-    m = re.search(
-        rf"Elavgift\s+{dato}-\d{{2}}\.\d{{2}}\.\d{{2}}\s+[\d ,]+kWh\s+([\d,]+)\s+øre/kWh",
-        tekst,
-    )
-    elavgift_ore = _sf(m.group(1)) if m else 0.0
-
-    spot_m_mva = spot_ore * 1.25
-    nettleie_m_mva = (energiledd_ore + elavgift_ore) * 1.25
-    totalt_pr_kwh = round(spot_m_mva - stromstotte_ore + nettleie_m_mva, 4)
-
-    print(f"  PDF {filnavn}: {MÅNEDER[måned_nr]} {år} (anlegg: {anleggsref})")
+    totalt_pr_kwh = round(total_kr / forbruk_kwh * 100, 4)
+    print(f"  PDF {filnavn}: {MÅNEDER[måned_nr]} {år} — "
+          f"{total_kr:.2f} kr / {forbruk_kwh:.2f} kWh = {totalt_pr_kwh:.4f} øre/kWh "
+          f"(anlegg: {anleggsref})")
     return (år, måned_nr, totalt_pr_kwh)
 
 
