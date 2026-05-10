@@ -2,28 +2,37 @@
 """
 Elbillading - strømkostnad beregning, Køhnkvartalet Sameie
 
-Leser CloudCharge CSV-filer og strømpriser fra Excel,
-beregner kostnad per ladepunkt per måned og skriver
+Leser CloudCharge CSV-filer fra mappen CloudCharge/ og strømpris-PDF-er
+fra mappen Faktura/, beregner kostnad per ladepunkt per måned og skriver
 ut Excel-fil til regnskapsfører.
 
 Bruk:
     python beregn_lading.py
 
-Legg CloudCharge CSV-fil(er) i samme mappe som scriptet før kjøring.
+Mappestruktur:
+    CloudCharge/   - CSV-filer lastet ned fra CloudCharge-portalen
+    Faktura/       - PDF-fakturaer fra strømleverandør (Ustekveikja Energi)
+
 Måneder uten registrert strømpris utelates automatisk fra rapporten.
+Strømpriser leses fra PDF-fakturaer. Eldre måneder uten PDF-faktura
+hentes fra Excel-fanen Strømpriser som fallback.
 """
 
 import os
 import glob
+import re
 from datetime import datetime
 
 import pandas as pd
+import pdfplumber
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 MAPPE = os.path.dirname(os.path.abspath(__file__))
 EXCEL_FIL = os.path.join(MAPPE, "Elbillading Strøm+Beboere.xlsx")
+CLOUDCHARGE_MAPPE = os.path.join(MAPPE, "CloudCharge")
+FAKTURA_MAPPE = os.path.join(MAPPE, "Faktura")
 
 MÅNEDER = {
     1: "Januar", 2: "Februar", 3: "Mars", 4: "April",
@@ -35,16 +44,124 @@ MÅNEDER = {
 PRISPÅSLAG = 1.20
 
 
+# ── Strømpriser ────────────────────────────────────────────────────────────
+
+def _sf(s):
+    """Norsk desimalstreng → float ('2 895,01' → 2895.01)."""
+    return float(str(s).replace("\xa0", "").replace(" ", "").replace(",", "."))
+
+
+def les_pris_fra_pdf(filsti):
+    """
+    Leser strømpriskomponenter fra Ustekveikja Energi-faktura (PDF) og
+    beregner Totalt pr/kWh etter samme formel som Excel-regnearket:
+
+        spot_m_mva = spotpris × 1.25
+        strømstøtte_øre = strømstøtte_kr / forbruk_kwh × 100
+        nettleie_m_mva = (energiledd_hverdag + elavgift) × 1.25
+        totalt = spot_m_mva − strømstøtte_øre + nettleie_m_mva
+
+    Returnerer (år, måned, totalt_pr_kwh) eller None ved parsefeil.
+    """
+    with pdfplumber.open(filsti) as pdf:
+        tekst = "\n".join(p.extract_text() or "" for p in pdf.pages)
+
+    # Periode: hent startmåned fra Strømpris-linjen (DD.MM.YY-DD.MM.YY)
+    m = re.search(r"Strømpris\s+(\d{2})\.(\d{2})\.(\d{2})-", tekst)
+    if not m:
+        return None
+    måned_nr = int(m.group(2))
+    år = 2000 + int(m.group(3))
+
+    # Forbruk kWh og spotpris øre/kWh (eks. MVA)
+    m = re.search(
+        r"Strømpris\s+\d{2}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}\s+"
+        r"([\d ]+,\d+)\s+kWh\s+([\d,]+)\s+øre/kWh",
+        tekst,
+    )
+    if not m:
+        return None
+    forbruk_kwh = _sf(m.group(1))
+    spot_ore = _sf(m.group(2))
+
+    # Strømstøtte: nettobeløp (negativt tall på linjen)
+    m = re.search(
+        r"Midlertidig str[øo]mst[øo]nad for\s+"
+        r"\d{2}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}\s+"
+        r"-[\d ,]+kWh\s+[\d,]+\s+øre/kWh\s+\d+\s+(-[\d ]+,\d{2})(?=\s)",
+        tekst,
+    )
+    stonad_kr = abs(_sf(m.group(1))) if m else 0.0
+
+    # Energiledd hverdag øre/kWh (variabel nettleie-komponent)
+    m = re.search(
+        r"Energiledd hverdag[^\n]+?kWh\s+([\d,]+)\s+øre/kWh",
+        tekst,
+    )
+    energiledd_ore = _sf(m.group(1)) if m else 0.0
+
+    # Elavgift øre/kWh
+    m = re.search(
+        r"Elavgift\s+\d{2}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}"
+        r"\s+[\d ,]+kWh\s+([\d,]+)\s+øre/kWh",
+        tekst,
+    )
+    elavgift_ore = _sf(m.group(1)) if m else 0.0
+
+    spot_m_mva = spot_ore * 1.25
+    stromstotte_ore = (stonad_kr / forbruk_kwh * 100) if forbruk_kwh > 0 else 0.0
+    nettleie_m_mva = (energiledd_ore + elavgift_ore) * 1.25
+    totalt_pr_kwh = round(spot_m_mva - stromstotte_ore + nettleie_m_mva, 4)
+
+    return (år, måned_nr, totalt_pr_kwh)
+
+
 def les_strompriser():
+    """
+    Leser strømpriser fra PDF-fakturaer (primær) og Excel (fallback).
+    PDF-priser overstyrer Excel for samme måned.
+    Skriver ut hvilken kilde som brukes per måned.
+    """
+    # Fallback: Excel-fanen Strømpriser
+    excel_priser = {}
     wb = openpyxl.load_workbook(EXCEL_FIL, data_only=True)
     ws = wb["Strømpriser"]
-    priser = {}
     for row in ws.iter_rows(values_only=True):
-        dato, pris = row[0], row[10]  # første og siste kolonne
+        dato, pris = row[0], row[10]
         if isinstance(dato, datetime) and isinstance(pris, (int, float)):
-            priser[(dato.year, dato.month)] = pris
+            excel_priser[(dato.year, dato.month)] = pris
+
+    # Primær: PDF-fakturaer i Faktura-mappen
+    pdf_priser = {}
+    pdf_filer = sorted(glob.glob(os.path.join(FAKTURA_MAPPE, "*.pdf")))
+    pdf_feil = []
+    for filsti in pdf_filer:
+        resultat = les_pris_fra_pdf(filsti)
+        if resultat:
+            år, måned_nr, pris = resultat
+            pdf_priser[(år, måned_nr)] = pris
+        else:
+            pdf_feil.append(os.path.basename(filsti))
+
+    if pdf_feil:
+        print(f"  ! Kunne ikke lese pris fra: {', '.join(pdf_feil)}")
+
+    # Meld fra om kilde per måned
+    alle_nøkler = set(excel_priser) | set(pdf_priser)
+    priser = {}
+    for nøkkel in sorted(alle_nøkler):
+        if nøkkel in pdf_priser:
+            priser[nøkkel] = pdf_priser[nøkkel]
+        else:
+            priser[nøkkel] = excel_priser[nøkkel]
+
+    print(f"  Strømpriser lastet: {len(pdf_priser)} fra PDF, "
+          f"{len(alle_nøkler) - len(pdf_priser)} fra Excel")
+
     return priser
 
+
+# ── Beboere ────────────────────────────────────────────────────────────────
 
 def les_beboere():
     wb = openpyxl.load_workbook(EXCEL_FIL, data_only=True)
@@ -62,6 +179,8 @@ def les_beboere():
     return beboere
 
 
+# ── CloudCharge CSV ────────────────────────────────────────────────────────
+
 def norsk_float(verdi):
     if pd.isna(verdi):
         return 0.0
@@ -71,21 +190,22 @@ def norsk_float(verdi):
 
 
 def les_csv_filer():
-    filer = glob.glob(os.path.join(MAPPE, "*.csv"))
+    filer = sorted(glob.glob(os.path.join(CLOUDCHARGE_MAPPE, "*.csv")))
     if not filer:
-        raise FileNotFoundError("Ingen CSV-filer funnet i mappen. Legg CloudCharge-fil(er) i mappen og prøv igjen.")
+        raise FileNotFoundError(
+            f"Ingen CSV-filer funnet i {CLOUDCHARGE_MAPPE}. "
+            "Legg CloudCharge-fil(er) i mappen CloudCharge/ og prøv igjen."
+        )
 
-    print(f"Fant {len(filer)} CSV-fil(er):")
+    print(f"  {len(filer)} CSV-fil(er) fra CloudCharge:")
     for f in filer:
-        print(f"  {os.path.basename(f)}")
+        print(f"    {os.path.basename(f)}")
 
-    deler = []
-    for filsti in filer:
-        df = pd.read_csv(filsti, sep=";", encoding="utf-8-sig", dtype=str)
-        deler.append(df)
-
+    deler = [pd.read_csv(f, sep=";", encoding="utf-8-sig", dtype=str) for f in filer]
     return pd.concat(deler, ignore_index=True)
 
+
+# ── Summering ──────────────────────────────────────────────────────────────
 
 def legg_til_summer(resultater):
     """Injiserer en Sum-rad etter hver gruppe av måneder per ladepunkt."""
@@ -101,25 +221,25 @@ def legg_til_summer(resultater):
         output.extend(gruppe)
 
         if len(gruppe) > 1:
-            total_kwh = round(sum(r["Forbruk (kWh)"] for r in gruppe), 2)
-            total_kr = round(sum(r["Strømkost (kr)"] for r in gruppe), 2)
             output.append({
                 "Ladepunkt": ladepunkt,
                 "Navn": gruppe[0]["Navn"],
                 "Leilighet": gruppe[0]["Leilighet"],
                 "År": "Sum",
                 "Måned": None,
-                "Forbruk (kWh)": total_kwh,
+                "Forbruk (kWh)": round(sum(r["Forbruk (kWh)"] for r in gruppe), 2),
                 "Strømpris inkl. 20% påslag (øre/kWh)": None,
-                "Strømkost (kr)": total_kr,
+                "Strømkost (kr)": round(sum(r["Strømkost (kr)"] for r in gruppe), 2),
                 "_summary": True,
             })
 
     return output
 
 
+# ── Hovedlogikk ────────────────────────────────────────────────────────────
+
 def beregn():
-    print("Leser strømpriser fra Excel...")
+    print("Leser strømpriser (PDF + Excel)...")
     priser = les_strompriser()
 
     print("Leser beboerregister fra Excel...")
@@ -128,43 +248,26 @@ def beregn():
     print("Leser CloudCharge CSV...")
     data = les_csv_filer()
 
-    # Konverter nøkkelkolonner
     data["Energi_kWh"] = data["Energi (kWh)"].apply(norsk_float)
     data["Startdato_dt"] = pd.to_datetime(data["Startdato"], format="%Y-%m-%d", errors="coerce")
     data["Uttak"] = pd.to_numeric(data["Uttak nummer"], errors="coerce")
     data["BeboerNr"] = data["Uttak"] + 100
-
-    # Behold bare rader med gyldig dato og uttak
     data = data.dropna(subset=["Startdato_dt", "Uttak"])
 
-    # Startdato brukes for månedstildeling: mesteparten av ladingen skjer
-    # tidlig i økten, og lange sesjoner (kabel i bilen over tid) tilhører
-    # naturlig måneden de startet.
+    # Startdato for månedstildeling — se CLAUDE.md for begrunnelse
     data["År"] = data["Startdato_dt"].dt.year.astype(int)
     data["Måned"] = data["Startdato_dt"].dt.month.astype(int)
     data["BeboerNr"] = data["BeboerNr"].astype(int)
 
-    # Finn alle måneder som finnes i CSV-dataene
-    måneder_i_csv = sorted(
-        {(int(r["År"]), int(r["Måned"])) for _, r in data.iterrows()}
-    )
-
-    # Filtrer til måneder som har registrert strømpris
+    måneder_i_csv = sorted({(int(r["År"]), int(r["Måned"])) for _, r in data.iterrows()})
     gyldige_måneder = [m for m in måneder_i_csv if m in priser]
     utelatte_måneder = [m for m in måneder_i_csv if m not in priser]
 
-    # Summer faktisk forbruk per beboer per måned (kun positive verdier)
     forbruk_data = data[data["Energi_kWh"] > 0]
-    gruppert = (
-        forbruk_data.groupby(["BeboerNr", "År", "Måned"])["Energi_kWh"]
-        .sum()
-    )
+    gruppert = forbruk_data.groupby(["BeboerNr", "År", "Måned"])["Energi_kWh"].sum()
 
     resultater = []
-    advarsler_pris = {f"{MÅNEDER[m]} {å}" for å, m in utelatte_måneder}
-    advarsler_beboer = set()
 
-    # Én rad per beboer per gyldig måned — 0 hvis ingen lading
     for beboer_nr in sorted(beboere.keys()):
         beboer = beboere[beboer_nr]
         for (år, måned) in gyldige_måneder:
@@ -185,15 +288,12 @@ def beregn():
                 "Strømkost (kr)": kostnad,
             })
 
-    if advarsler_pris:
-        print(f"\n  Følgende måneder er utelatt (strømpris ikke registrert): {', '.join(sorted(advarsler_pris))}")
-    if advarsler_beboer:
-        print("\nAdvarsler:")
-        for a in sorted(advarsler_beboer):
-            print(f"  ! {a}")
+    if utelatte_måneder:
+        utelatt_str = ", ".join(f"{MÅNEDER[m]} {å}" for å, m in utelatte_måneder)
+        print(f"\n  Følgende måneder utelatt (ingen PDF-faktura eller Excel-pris): {utelatt_str}")
 
     if not resultater:
-        print("\nIngen resultater å skrive. Sjekk at CSV-filer og strømpriser er oppdatert.")
+        print("\nIngen resultater å skrive. Sjekk at filer er lagt i riktige mapper.")
         return
 
     resultater.sort(key=lambda x: x["_sort"])
@@ -206,13 +306,13 @@ def beregn():
     output_fil = os.path.join(MAPPE, f"Fakturering_{tidsstempel}.xlsx")
     skriv_excel(resultater, output_fil)
 
-    rader_uten_sum = [r for r in resultater if not r["_summary"]]
-    total_kwh = round(sum(r["Forbruk (kWh)"] for r in rader_uten_sum), 2)
-    total_kr = round(sum(r["Strømkost (kr)"] for r in rader_uten_sum), 2)
-    print(f"\nTotalt forbruk : {total_kwh:,.2f} kWh")
-    print(f"Total kostnad  : kr {total_kr:,.2f}")
+    rader = [r for r in resultater if not r["_summary"]]
+    print(f"\nTotalt forbruk : {sum(r['Forbruk (kWh)'] for r in rader):,.2f} kWh")
+    print(f"Total kostnad  : kr {sum(r['Strømkost (kr)'] for r in rader):,.2f}")
     print(f"\nFerdig! Fil lagret: {os.path.basename(output_fil)}")
 
+
+# ── Excel-output ───────────────────────────────────────────────────────────
 
 def skriv_excel(resultater, filsti):
     wb = openpyxl.Workbook()
@@ -225,7 +325,6 @@ def skriv_excel(resultater, filsti):
     ]
     kolonnebredder = [12, 32, 12, 8, 14, 16, 32, 16]
 
-    # Stiler
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
     summary_font = Font(bold=True)
@@ -249,12 +348,9 @@ def skriv_excel(resultater, filsti):
             forrige_ladepunkt = rad["Ladepunkt"]
             gruppe_teller += 1
 
-        if er_summary:
-            fyll = summary_fill
-        else:
-            fyll = annenhver_fill if gruppe_teller % 2 == 0 else None
+        fyll = summary_fill if er_summary else (annenhver_fill if gruppe_teller % 2 == 0 else None)
 
-        def sett(col, verdi, tallformat=None, bold=False):
+        def sett(col, verdi, tallformat=None):
             c = ws.cell(row=rad_nr, column=col, value=verdi)
             if fyll:
                 c.fill = fyll

@@ -1,12 +1,13 @@
 # CloudCharge Billing
 
-Beregner strømkostnader for elbil-ladepunkter i sameie basert på ladedata fra CloudCharge og strømpriser fra Excel. Genererer Excel-rapport klar for videreformidling til regnskapsfører.
+Beregner strømkostnader for elbil-ladepunkter i sameie basert på ladedata fra CloudCharge og strømpris-PDF fra leverandør. Genererer Excel-rapport klar for videreformidling til regnskapsfører.
 
 ## Forutsetninger
 
 - Python 3.9 eller nyere
 - Tilgang til CloudCharge-portalen for nedlasting av ladedata
-- Excel-filen `Elbillading Strøm+Beboere.xlsx` med strømpriser og beboerregister (ikke inkludert i repoet — inneholder persondata)
+- PDF-fakturaer fra strømleverandør (Ustekveikja Energi AS)
+- Excel-filen `Elbillading Strøm+Beboere.xlsx` med beboerregister og historiske strømpriser (ikke inkludert i repoet — inneholder persondata)
 
 ## Installasjon
 
@@ -16,19 +17,17 @@ pip install -r requirements.txt
 
 ## Bruk
 
-### 1. Hent ladedata fra CloudCharge
+### 1. Legg inn ladedata fra CloudCharge
 
-Logg inn på [portal.cloudcharge.se](https://portal.cloudcharge.se/reports), velg rapporttype **Charge sessions**, sett ønsket tidsperiode og last ned CSV-filen. Legg filen i prosjektmappen.
+Logg inn på [portal.cloudcharge.se](https://portal.cloudcharge.se/reports), velg rapporttype **Charge sessions**, sett ønsket tidsperiode og last ned CSV-filen. Legg filen i undermappen **`CloudCharge/`**.
 
-> CloudCharge kan også konfigureres til å sende månedlige CSV-rapporter automatisk til en e-postadresse.
+> CloudCharge kan konfigureres til å sende månedlige CSV-rapporter automatisk til en e-postadresse.
 
-### 2. Oppdater strømpriser
+### 2. Legg inn strømfaktura
 
-Åpne `Elbillading Strøm+Beboere.xlsx`, gå til fanen **Strømpriser** og legg inn pris (øre/kWh) for aktuelle måneder. Prisen hentes fra strømfakturaen (kolonne: `Totalt pr/kwh`).
+Lagre PDF-fakturaen fra Ustekveikja Energi i undermappen **`Faktura/`**. Scriptet leser automatisk ut spotpris, strømstøtte og nettleie og beregner totalpris per kWh.
 
-Lagre og lukk Excel-filen før kjøring av scriptet.
-
-> Strømfaktura for en gitt måned er kjent først måneden etter. Måneder som mangler pris utelates automatisk fra rapporten — scriptet melder fra om hvilke måneder som hoppes over.
+> Strømfaktura for en gitt måned er kjent først måneden etter. Måneder som mangler faktura utelates automatisk fra rapporten — scriptet melder fra om hvilke måneder som hoppes over.
 
 ### 3. Kjør scriptet
 
@@ -36,11 +35,11 @@ Lagre og lukk Excel-filen før kjøring av scriptet.
 python beregn_lading.py
 ```
 
-Scriptet leser automatisk alle CSV-filer i mappen. Flere CSV-filer kan legges inn samtidig (f.eks. tre månedsfiler for et kvartal).
+Scriptet kombinerer alle CSV-filer i `CloudCharge/` og alle PDF-er i `Faktura/` automatisk. Legg gjerne inn flere månedsfiler for et helt kvartal.
 
 ### 4. Hent output
 
-En fil med navn `Fakturering_YYYYMMDD_HHMM.xlsx` opprettes i mappen. Denne sendes til regnskapsfører.
+En fil med navn `Fakturering_YYYYMMDD_HHMM.xlsx` opprettes i rotmappen. Denne sendes til regnskapsfører.
 
 ## Filstruktur
 
@@ -52,10 +51,35 @@ cloudcharge-billing/
 └── README.md
 
 Ikke i versjonskontroll (legg til manuelt):
-├── Elbillading Strøm+Beboere.xlsx   # Strømpriser og beboerregister
-├── *.csv                            # CloudCharge ladedata
-└── Fakturering_*.xlsx               # Genererte rapporter
+├── Elbillading Strøm+Beboere.xlsx      # Beboerregister + historiske priser
+├── CloudCharge/                        # CSV-filer fra CloudCharge
+│   └── Charge sessions *.csv
+├── Faktura/                            # PDF-fakturaer fra strømleverandør
+│   └── Faktura *.pdf
+└── Fakturering_*.xlsx                  # Genererte rapporter
 ```
+
+## Strømprisberegning fra PDF
+
+Scriptet leser følgende felter fra Ustekveikja Energi-fakturaen og beregner totalpris per kWh:
+
+| Felt i PDF | Brukes til |
+|---|---|
+| Strømpris — øre/kWh | Spotpris eks. MVA |
+| Strømpris — kWh | Totalt forbruk (for strømstøtte-beregning) |
+| Midlertidig strømstønad for borettslag — Nettobeløp | Strømstøtte i kr |
+| Energiledd hverdag — øre/kWh | Nettleie-komponent |
+| Elavgift — øre/kWh | Nettleie-komponent |
+
+**Formel:**
+```
+spot_m_mva      = spotpris × 1,25
+strømstøtte_øre = strømstøtte_kr / forbruk_kWh × 100
+nettleie_m_mva  = (energiledd_hverdag + elavgift) × 1,25
+totalt_pr_kWh   = spot_m_mva − strømstøtte_øre + nettleie_m_mva
+```
+
+For måneder uten PDF-faktura (historiske data) hentes prisen fra fanen **Strømpriser** i Excel-filen.
 
 ## Kolonnebeskrivelse — output Excel
 
@@ -64,32 +88,29 @@ Ikke i versjonskontroll (legg til manuelt):
 | Ladepunkt | Nummer 101–116 (100 + uttaksnummer fra CloudCharge) |
 | Navn | Beboernavn fra register |
 | Leilighet | H-nummer (f.eks. H0209) |
-| Måned | Månedsnavn og år (f.eks. April 2026), eller **Sum** |
+| År | Årstall |
+| Måned | Månedsnavn, eller **Sum** |
 | Forbruk (kWh) | Forbruk for måneden, eller totalt for Sum-raden |
-| Strømpris inkl. 20% påslag (øre/kWh) | Spotpris fra Excel × 1,20, tom på Sum-rad |
+| Strømpris inkl. 20% påslag (øre/kWh) | Totalpris × 1,20, tom på Sum-rad |
 | Strømkost (kr) | Forbruk × pris / 100, eller totalsum for Sum-raden |
 
 ## Månedstildeling ved sesjoner over månedsskiftet
 
-En ladeøkt tildeles måneden den **startet** (`Startdato`), ikke måneden den avsluttet.
-
-Begrunnelsen er todelt:
-- Mesteparten av energien overføres tidlig i en ladeøkt — bilen lader raskt til den er full og trickle-lader deretter
-- Lange sesjoner der kabelen blir stående i bilen over tid (f.eks. fra fredag til mandag) tilhører naturlig måneden ladingen begynte
+En ladeøkt tildeles måneden den **startet** (`Startdato`), ikke måneden den avsluttet. Begrunnelsen er todelt:
+- Mesteparten av energien overføres tidlig i en ladeøkt
+- Lange sesjoner der kabelen blir stående i bilen over tid tilhører naturlig måneden ladingen begynte
 
 Dette er konsistent med hvordan tallene tidligere ble beregnet i PowerBI.
 
 ## Prispåslag
 
-Spotprisen fra Excel multipliseres med **20%** før kostnad beregnes. Bakgrunnen er at gjennomsnittlig månedspris brukes, men lading kan skje i dyrere timer på døgnet — påslaget dekker denne usikkerheten.
+Totalpris per kWh multipliseres med **20%** før kostnad beregnes. Bakgrunnen er at gjennomsnittlig månedspris brukes, men lading kan skje i dyrere timer på døgnet — påslaget dekker denne usikkerheten.
 
-Påslaget er definert som konstanten `PRISPÅSLAG = 1.20` øverst i `beregn_lading.py` og kan justeres der ved behov.
-
-Når et ladepunkt har forbruk i flere måneder, legges en **Sum-rad** til etter månedradene med totalt forbruk og total kostnad for perioden.
+Påslaget er definert som konstanten `PRISPÅSLAG = 1.20` øverst i `beregn_lading.py`.
 
 ## Advarsler ved kjøring
 
 | Situasjon | Hva skjer |
 |---|---|
-| Måned mangler strømpris i Excel | Måneden utelates fra rapporten, melding i konsollen |
-| Uttaksnummer i CSV finnes ikke i beboerregisteret | Raden hoppes over, advarsel i konsollen |
+| Måned mangler både PDF-faktura og Excel-pris | Måneden utelates, melding i konsollen |
+| PDF kan ikke leses/parses | Advarsel i konsollen, faller tilbake på Excel |

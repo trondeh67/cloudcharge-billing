@@ -1,5 +1,8 @@
 # CloudCharge rådata - ikke i versjonskontroll
-*.csv
+CloudCharge/
+
+# PDF-fakturaer - ikke i versjonskontroll
+Faktura/
 
 # Excel-filer med persondata og output
 Elbillading Strøm+Beboere.xlsx
