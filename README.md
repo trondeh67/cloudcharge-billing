@@ -96,11 +96,7 @@ For måneder uten PDF-faktura (historiske data) hentes prisen fra fanen **Strøm
 
 ## Månedstildeling ved sesjoner over månedsskiftet
 
-En ladeøkt tildeles måneden den **startet** (`Startdato`), ikke måneden den avsluttet. Begrunnelsen er todelt:
-- Mesteparten av energien overføres tidlig i en ladeøkt
-- Lange sesjoner der kabelen blir stående i bilen over tid tilhører naturlig måneden ladingen begynte
-
-Dette er konsistent med hvordan tallene tidligere ble beregnet i PowerBI.
+En ladeøkt tildeles måneden den **avsluttet** (`Sluttdato`). Dette samsvarer med hvordan CloudCharge selv periodiserer sesjoner i eksportfilen: en sesjon er inkludert i perioden der sluttdatoen faller. Dermed blir summen i scriptet konsistent med hva som faktisk ligger i CSV-filen for en gitt periode.
 
 ## Prispåslag
 

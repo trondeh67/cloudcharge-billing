@@ -18,9 +18,9 @@ Fakturering_*.xlsx                # IKKE i git — output til regnskapsfører
 ### CloudCharge CSV ("Charge sessions"-rapport)
 - Legges i undermappen `CloudCharge/`
 - Format: semikolonseparert, norsk tallformat (komma desimal, mellomrom tusenskiller)
-- Nøkkelkolonner: `Uttak nummer` (1–16), `Startdato` (YYYY-MM-DD), `Energi (kWh)`
+- Nøkkelkolonner: `Uttak nummer` (1–16), `Sluttdato` (YYYY-MM-DD), `Energi (kWh)`
 - Én rad per ladeøkt — scriptet summerer per uttak per måned
-- Månedstildeling basert på **`Startdato`** (ikke sluttdato): mesteparten av ladingen skjer tidlig i økten, og lange sesjoner der kabelen står i bilen over tid tilhører naturlig måneden de startet. Konsistent med tidligere PowerBI-rapport.
+- Månedstildeling basert på **`Sluttdato`**: CloudCharge inkluderer sesjoner i en eksportperiode basert på sluttdato, så sluttdato gir konsistent samsvar mellom CSV-fil og hvilken måned sesjonen telles i.
 - Alle CSV-filer i mappen behandles — legg gjerne inn flere månedsfiler samtidig
 
 ### PDF-fakturaer (Ustekveikja Energi AS)

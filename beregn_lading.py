@@ -277,14 +277,15 @@ def beregn():
     data = les_csv_filer()
 
     data["Energi_kWh"] = data["Energi (kWh)"].apply(norsk_float)
-    data["Startdato_dt"] = pd.to_datetime(data["Startdato"], format="%Y-%m-%d", errors="coerce")
+    data["Sluttdato_dt"] = pd.to_datetime(data["Sluttdato"], format="%Y-%m-%d", errors="coerce")
     data["Uttak"] = pd.to_numeric(data["Uttak nummer"], errors="coerce")
     data["BeboerNr"] = data["Uttak"] + 100
-    data = data.dropna(subset=["Startdato_dt", "Uttak"])
+    data = data.dropna(subset=["Sluttdato_dt", "Uttak"])
 
-    # Startdato for månedstildeling — se CLAUDE.md for begrunnelse
-    data["År"] = data["Startdato_dt"].dt.year.astype(int)
-    data["Måned"] = data["Startdato_dt"].dt.month.astype(int)
+    # Sluttdato for månedstildeling — samsvarer med CloudCharges eksportformat
+    # (CloudCharge inkluderer sesjoner i perioden basert på sluttdato).
+    data["År"] = data["Sluttdato_dt"].dt.year.astype(int)
+    data["Måned"] = data["Sluttdato_dt"].dt.month.astype(int)
     data["BeboerNr"] = data["BeboerNr"].astype(int)
 
     måneder_i_csv = sorted({(int(r["År"]), int(r["Måned"])) for _, r in data.iterrows()})
