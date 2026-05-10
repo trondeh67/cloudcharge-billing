@@ -107,7 +107,8 @@ def legg_til_summer(resultater):
                 "Ladepunkt": ladepunkt,
                 "Navn": gruppe[0]["Navn"],
                 "Leilighet": gruppe[0]["Leilighet"],
-                "Måned": "Sum",
+                "År": "Sum",
+                "Måned": None,
                 "Forbruk (kWh)": total_kwh,
                 "Strømpris inkl. 20% påslag (øre/kWh)": None,
                 "Strømkost (kr)": total_kr,
@@ -175,7 +176,8 @@ def beregn():
                 "Ladepunkt": beboer_nr,
                 "Navn": beboer["navn"],
                 "Leilighet": beboer["hnummer"],
-                "Måned": f"{MÅNEDER[måned]} {år}",
+                "År": år,
+                "Måned": MÅNEDER[måned],
                 "_sort": (beboer_nr, år, måned),
                 "_summary": False,
                 "Forbruk (kWh)": forbruk,
@@ -218,10 +220,10 @@ def skriv_excel(resultater, filsti):
     ws.title = "Fakturering"
 
     kolonner = [
-        "Ladepunkt", "Navn", "Leilighet", "Måned",
+        "Ladepunkt", "Navn", "Leilighet", "År", "Måned",
         "Forbruk (kWh)", "Strømpris inkl. 20% påslag (øre/kWh)", "Strømkost (kr)",
     ]
-    kolonnebredder = [12, 32, 12, 18, 16, 32, 16]
+    kolonnebredder = [12, 32, 12, 8, 14, 16, 32, 16]
 
     # Stiler
     header_font = Font(bold=True, color="FFFFFF")
@@ -266,10 +268,11 @@ def skriv_excel(resultater, filsti):
         sett(1, rad["Ladepunkt"])
         sett(2, rad["Navn"])
         sett(3, rad["Leilighet"])
-        sett(4, rad["Måned"])
-        sett(5, rad["Forbruk (kWh)"], "#,##0.00")
-        sett(6, rad["Strømpris inkl. 20% påslag (øre/kWh)"], "#,##0.00")
-        sett(7, rad["Strømkost (kr)"], "#,##0.00")
+        sett(4, rad["År"])
+        sett(5, rad["Måned"])
+        sett(6, rad["Forbruk (kWh)"], "#,##0.00")
+        sett(7, rad["Strømpris inkl. 20% påslag (øre/kWh)"], "#,##0.00")
+        sett(8, rad["Strømkost (kr)"], "#,##0.00")
 
     for col, bredde in enumerate(kolonnebredder, 1):
         ws.column_dimensions[get_column_letter(col)].width = bredde
