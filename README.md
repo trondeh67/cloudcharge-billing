@@ -32,14 +32,20 @@ Lagre PDF-fakturaen fra Ustekveikja Energi i undermappen **`Faktura/`**. Scripte
 ### 3. Kjør scriptet
 
 ```bash
+# Alle tilgjengelige måneder:
 python beregn_lading.py
+
+# Avgrenset tidsrom (f.eks. Q1 2026):
+python beregn_lading.py 2026.01 2026.03
 ```
 
 Scriptet kombinerer alle CSV-filer i `CloudCharge/` og alle PDF-er i `Faktura/` automatisk. Legg gjerne inn flere månedsfiler for et helt kvartal.
 
+Valgfrie periodeargumenter (`YYYY.MM YYYY.MM`) begrenser rapporten til måneder innenfor det angitte tidsrommet (inklusiv begge endepunkter).
+
 ### 4. Hent output
 
-En fil med navn `Fakturering_YYYYMMDD_HHMM.xlsx` opprettes i rotmappen. Denne sendes til regnskapsfører.
+En fil med navn `Fakturering_YYYYMMDD_HHMM.xlsx` (eller `Fakturering_YYYYMM-YYYYMM_YYYYMMDD_HHMM.xlsx` ved angitt periode) opprettes i rotmappen. Denne sendes til regnskapsfører.
 
 ## Filstruktur
 
@@ -110,3 +116,5 @@ Påslaget er definert som konstanten `PRISPÅSLAG = 1.20` øverst i `beregn_ladi
 |---|---|
 | Måned mangler både PDF-faktura og Excel-pris | Måneden utelates, melding i konsollen |
 | PDF kan ikke leses/parses | Advarsel i konsollen, faller tilbake på Excel |
+| PDF har feil Anleggsreferanse | Advarsell i konsollen, fakturaen hoppes over |
+| Feil format på periodeargumenter | Feilmelding med eksempel, scriptet avslutter |

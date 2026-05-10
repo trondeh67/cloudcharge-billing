@@ -48,9 +48,21 @@ Fane **Beboere**:
 - Kolonne `H-nummer`: leilighetsnummer (f.eks. H0209)
 - 16 ladepunkter totalt (101–116); nr 110 og 116 tilhører samme beboer
 
+## Kjøring
+
+```
+python beregn_lading.py                    # alle tilgjengelige måneder
+python beregn_lading.py 2026.01 2026.04   # kun januar–april 2026
+```
+
+Periodeargumentene er valgfrie og på formen `YYYY.MM YYYY.MM` (fra og med, til og med). Feil format gir feilmelding og avslutter.
+
 ## Output
-Excel-fil `Fakturering_YYYYMMDD_HHMM.xlsx` med kolonner:
-`Ladepunkt | Navn | Leilighet | År | Måned | Forbruk (kWh) | Strømpris inkl. 20% påslag (øre/kWh) | Strømkost (kr)`
+Excel-fil med navn:
+- `Fakturering_YYYYMMDD_HHMM.xlsx` — uten periodeargument
+- `Fakturering_YYYYMM-YYYYMM_YYYYMMDD_HHMM.xlsx` — med periodeargument
+
+Kolonner: `Ladepunkt | Navn | Leilighet | År | Måned | Forbruk (kWh) | Strømpris inkl. 20% påslag (øre/kWh) | Strømkost (kr)`
 
 Når et ladepunkt har forbruk i flere måneder, legges det til en **Sum-rad** (fet, blå bakgrunn) etter månedradene med totalt forbruk og total kostnad.
 
