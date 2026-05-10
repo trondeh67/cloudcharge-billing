@@ -341,7 +341,9 @@ def beregn(fra=None, til=None):
     else:
         periode_str = ""
     output_fil = os.path.join(MAPPE, f"Fakturering_{periode_str}{tidsstempel}.xlsx")
-    skriv_excel(resultater, output_fil)
+    første_måned = gyldige_måneder[0]
+    siste_måned = gyldige_måneder[-1]
+    skriv_excel(resultater, output_fil, første_måned, siste_måned)
 
     rader = [r for r in resultater if not r["_summary"]]
     print(f"\nTotalt forbruk : {sum(r['Forbruk (kWh)'] for r in rader):,.2f} kWh")
@@ -351,7 +353,7 @@ def beregn(fra=None, til=None):
 
 # ── Excel-output ───────────────────────────────────────────────────────────
 
-def skriv_excel(resultater, filsti):
+def skriv_excel(resultater, filsti, første_måned, siste_måned):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Fakturering"
@@ -411,6 +413,68 @@ def skriv_excel(resultater, filsti):
         ws.column_dimensions[get_column_letter(col)].width = bredde
 
     ws.freeze_panes = "A2"
+
+    # ── Fane 2: Oppsummert ──────────────────────────────────────────────────
+    ws2 = wb.create_sheet("Oppsummert")
+
+    periode_tekst = (
+        f"Fakturaunderlag for perioden "
+        f"{MÅNEDER[første_måned[1]]} {første_måned[0]} "
+        f"til {MÅNEDER[siste_måned[1]]} {siste_måned[0]}"
+    )
+    ws2.cell(row=1, column=1, value=periode_tekst).font = Font(bold=True, size=12)
+    ws2.merge_cells("A1:E1")
+
+    kol2 = ["Ladepunkt", "Navn", "Leilighet", "Forbruk (kWh)", "Strømkost (kr)"]
+    bredder2 = [12, 32, 12, 16, 16]
+    for col, navn in enumerate(kol2, 1):
+        c = ws2.cell(row=3, column=col, value=navn)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal="center")
+
+    # Summer forbruk og kostnad per ladepunkt (ekskluder summary-rader og nullrader)
+    summer = {}
+    for rad in resultater:
+        if rad.get("_summary"):
+            continue
+        lp = rad["Ladepunkt"]
+        if lp not in summer:
+            summer[lp] = {"Navn": rad["Navn"], "Leilighet": rad["Leilighet"],
+                          "Forbruk (kWh)": 0.0, "Strømkost (kr)": 0.0}
+        summer[lp]["Forbruk (kWh)"] += rad["Forbruk (kWh)"]
+        summer[lp]["Strømkost (kr)"] += rad["Strømkost (kr)"]
+
+    rad_nr2 = 4
+    for lp in sorted(summer.keys()):
+        s = summer[lp]
+        if s["Forbruk (kWh)"] == 0:
+            continue
+        ws2.cell(row=rad_nr2, column=1, value=lp)
+        ws2.cell(row=rad_nr2, column=2, value=s["Navn"])
+        ws2.cell(row=rad_nr2, column=3, value=s["Leilighet"])
+        c_kwh = ws2.cell(row=rad_nr2, column=4, value=round(s["Forbruk (kWh)"], 2))
+        c_kwh.number_format = "#,##0.00"
+        c_kr = ws2.cell(row=rad_nr2, column=5, value=round(s["Strømkost (kr)"], 2))
+        c_kr.number_format = "#,##0.00"
+        rad_nr2 += 1
+
+    # Totallinje
+    ws2.cell(row=rad_nr2, column=3, value="Totalt").font = Font(bold=True)
+    c_tot_kwh = ws2.cell(row=rad_nr2, column=4,
+                         value=round(sum(s["Forbruk (kWh)"] for s in summer.values()), 2))
+    c_tot_kwh.number_format = "#,##0.00"
+    c_tot_kwh.font = Font(bold=True)
+    c_tot_kr = ws2.cell(row=rad_nr2, column=5,
+                        value=round(sum(s["Strømkost (kr)"] for s in summer.values()), 2))
+    c_tot_kr.number_format = "#,##0.00"
+    c_tot_kr.font = Font(bold=True)
+    for col in range(1, 6):
+        ws2.cell(row=rad_nr2, column=col).border = Border(top=Side(style="thin"))
+
+    for col, bredde in enumerate(bredder2, 1):
+        ws2.column_dimensions[get_column_letter(col)].width = bredde
+
     wb.save(filsti)
 
 
