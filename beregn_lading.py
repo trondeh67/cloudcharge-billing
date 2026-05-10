@@ -266,7 +266,9 @@ def legg_til_summer(resultater):
 
 # ── Hovedlogikk ────────────────────────────────────────────────────────────
 
-def beregn():
+def beregn(fra=None, til=None):
+    if fra and til:
+        print(f"Periode: {fra[0]}.{fra[1]:02d} – {til[0]}.{til[1]:02d}")
     print("Leser strømpriser (PDF + Excel)...")
     priser = les_strompriser()
 
@@ -289,6 +291,8 @@ def beregn():
     data["BeboerNr"] = data["BeboerNr"].astype(int)
 
     måneder_i_csv = sorted({(int(r["År"]), int(r["Måned"])) for _, r in data.iterrows()})
+    if fra and til:
+        måneder_i_csv = [m for m in måneder_i_csv if fra <= m <= til]
     gyldige_måneder = [m for m in måneder_i_csv if m in priser]
     utelatte_måneder = [m for m in måneder_i_csv if m not in priser]
 
@@ -332,7 +336,11 @@ def beregn():
     resultater = legg_til_summer(resultater)
 
     tidsstempel = datetime.now().strftime("%Y%m%d_%H%M")
-    output_fil = os.path.join(MAPPE, f"Fakturering_{tidsstempel}.xlsx")
+    if fra and til:
+        periode_str = f"{fra[0]}{fra[1]:02d}-{til[0]}{til[1]:02d}_"
+    else:
+        periode_str = ""
+    output_fil = os.path.join(MAPPE, f"Fakturering_{periode_str}{tidsstempel}.xlsx")
     skriv_excel(resultater, output_fil)
 
     rader = [r for r in resultater if not r["_summary"]]
@@ -406,5 +414,31 @@ def skriv_excel(resultater, filsti):
     wb.save(filsti)
 
 
+def parse_periode(args):
+    """
+    Leser valgfrie periodeargumenter på formen YYYY.MM YYYY.MM.
+    Returnerer (fra_tuple, til_tuple) eller (None, None) om ingen er oppgitt.
+    """
+    if len(args) == 0:
+        return None, None
+    if len(args) != 2:
+        print("Bruk: python beregn_lading.py [YYYY.MM YYYY.MM]")
+        print("Eksempel: python beregn_lading.py 2026.01 2026.04")
+        raise SystemExit(1)
+    fra_str, til_str = args
+    try:
+        fra = tuple(int(x) for x in fra_str.split("."))
+        til = tuple(int(x) for x in til_str.split("."))
+        assert len(fra) == 2 and len(til) == 2
+        assert 1 <= fra[1] <= 12 and 1 <= til[1] <= 12
+        assert fra <= til
+    except Exception:
+        print(f"Ugyldig periode: '{fra_str}' '{til_str}'. Forventet format: YYYY.MM YYYY.MM")
+        raise SystemExit(1)
+    return fra, til
+
+
 if __name__ == "__main__":
-    beregn()
+    import sys
+    fra, til = parse_periode(sys.argv[1:])
+    beregn(fra, til)
