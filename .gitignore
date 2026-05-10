@@ -1,0 +1,19 @@
+# CloudCharge rådata - ikke i versjonskontroll
+*.csv
+
+# Excel-filer med persondata og output
+Elbillading Strøm+Beboere.xlsx
+Fakturering_*.xlsx
+~$*.xlsx
+~$*.xls
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
