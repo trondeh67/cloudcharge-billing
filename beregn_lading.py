@@ -129,15 +129,18 @@ def beregn():
 
     # Konverter nøkkelkolonner
     data["Energi_kWh"] = data["Energi (kWh)"].apply(norsk_float)
-    data["Sluttdato_dt"] = pd.to_datetime(data["Sluttdato"], format="%Y-%m-%d", errors="coerce")
+    data["Startdato_dt"] = pd.to_datetime(data["Startdato"], format="%Y-%m-%d", errors="coerce")
     data["Uttak"] = pd.to_numeric(data["Uttak nummer"], errors="coerce")
     data["BeboerNr"] = data["Uttak"] + 100
 
     # Behold bare rader med gyldig dato og uttak
-    data = data.dropna(subset=["Sluttdato_dt", "Uttak"])
+    data = data.dropna(subset=["Startdato_dt", "Uttak"])
 
-    data["År"] = data["Sluttdato_dt"].dt.year.astype(int)
-    data["Måned"] = data["Sluttdato_dt"].dt.month.astype(int)
+    # Startdato brukes for månedstildeling: mesteparten av ladingen skjer
+    # tidlig i økten, og lange sesjoner (kabel i bilen over tid) tilhører
+    # naturlig måneden de startet.
+    data["År"] = data["Startdato_dt"].dt.year.astype(int)
+    data["Måned"] = data["Startdato_dt"].dt.month.astype(int)
     data["BeboerNr"] = data["BeboerNr"].astype(int)
 
     # Finn alle måneder som finnes i CSV-dataene

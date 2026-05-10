@@ -16,9 +16,9 @@ Fakturering_*.xlsx                # IKKE i git — output til regnskapsfører
 
 ### CloudCharge CSV ("Charge sessions"-rapport)
 - Format: semikolonseparert, norsk tallformat (komma desimal, mellomrom tusenskiller)
-- Nøkkelkolonner: `Uttak nummer` (1–16), `Sluttdato` (YYYY-MM-DD), `Energi (kWh)`
+- Nøkkelkolonner: `Uttak nummer` (1–16), `Startdato` (YYYY-MM-DD), `Energi (kWh)`
 - Én rad per ladeøkt — scriptet summerer per uttak per måned
-- Månedstildeling basert på `Sluttdato`
+- Månedstildeling basert på **`Startdato`** (ikke sluttdato): mesteparten av ladingen skjer tidlig i økten, og lange sesjoner der kabelen står i bilen over tid tilhører naturlig måneden de startet. Konsistent med tidligere PowerBI-rapport.
 - Filer legges i prosjektmappen før kjøring — alle CSV-filer i mappen behandles
 
 ### Excel: Elbillading Strøm+Beboere.xlsx
