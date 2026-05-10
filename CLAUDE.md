@@ -62,9 +62,17 @@ Excel-fil med navn:
 - `Fakturering_YYYYMMDD_HHMM.xlsx` — uten periodeargument
 - `Fakturering_YYYYMM-YYYYMM_YYYYMMDD_HHMM.xlsx` — med periodeargument
 
-Kolonner: `Ladepunkt | Navn | Leilighet | År | Måned | Forbruk (kWh) | Strømpris inkl. 20% påslag (øre/kWh) | Strømkost (kr)`
+### Fane 1: Fakturering
+Månedlig detaljert oversikt. Kolonner:
+`Ladepunkt | Navn | Leilighet | År | Måned | Forbruk (kWh) | Strømpris inkl. 20% påslag (øre/kWh) | Strømkost (kr)`
 
-Når et ladepunkt har forbruk i flere måneder, legges det til en **Sum-rad** (fet, blå bakgrunn) etter månedradene med totalt forbruk og total kostnad.
+Alle 16 ladepunkter vises for alle gyldige måneder, også de med null forbruk. Ladepunkter med forbruk i flere måneder får en **Sum-rad** (fet, blå bakgrunn) etter månedradene.
+
+### Fane 2: Oppsummert
+Fakturaunderlag til forretningsfører — aggregerte totaler per ladepunkt for hele perioden. Kolonner:
+`Ladepunkt | Navn | Leilighet | Forbruk (kWh) | Strømkost (kr)`
+
+Alle 16 ladepunkter vises inkludert de med null forbruk. Øverst: tittelrad med perioden. Nederst: totallinje.
 
 Måneder uten registrert strømpris (verken PDF eller Excel) **utelates helt** fra rapporten.
 

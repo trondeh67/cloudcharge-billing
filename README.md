@@ -87,7 +87,11 @@ totalt_pr_kWh   = spot_m_mva − strømstøtte_øre + nettleie_m_mva
 
 For måneder uten PDF-faktura (historiske data) hentes prisen fra fanen **Strømpriser** i Excel-filen.
 
-## Kolonnebeskrivelse — output Excel
+## Output Excel — to faner
+
+### Fane 1: Fakturering
+
+Månedlig detaljert oversikt per ladepunkt.
 
 | Kolonne | Beskrivelse |
 |---|---|
@@ -99,6 +103,22 @@ For måneder uten PDF-faktura (historiske data) hentes prisen fra fanen **Strøm
 | Forbruk (kWh) | Forbruk for måneden, eller totalt for Sum-raden |
 | Strømpris inkl. 20% påslag (øre/kWh) | Totalpris × 1,20, tom på Sum-rad |
 | Strømkost (kr) | Forbruk × pris / 100, eller totalsum for Sum-raden |
+
+Ladepunkter med forbruk i flere måneder får en **Sum-rad** (fet, blå bakgrunn) etter månedradene.
+
+### Fane 2: Oppsummert
+
+Fakturaunderlag til forretningsfører — aggregerte tall per ladepunkt for hele perioden.
+
+| Kolonne | Beskrivelse |
+|---|---|
+| Ladepunkt | Nummer 101–116 |
+| Navn | Beboernavn |
+| Leilighet | H-nummer |
+| Forbruk (kWh) | Totalt forbruk i perioden |
+| Strømkost (kr) | Total kostnad i perioden |
+
+Alle 16 ladepunkter vises, også de uten forbruk (0,00). Fanen inneholder en tittelrad med perioden (`Fakturaunderlag for perioden <måned> <år> til <måned> <år>`) og en totallinje nederst.
 
 ## Månedstildeling ved sesjoner over månedsskiftet
 
@@ -116,5 +136,5 @@ Påslaget er definert som konstanten `PRISPÅSLAG = 1.20` øverst i `beregn_ladi
 |---|---|
 | Måned mangler både PDF-faktura og Excel-pris | Måneden utelates, melding i konsollen |
 | PDF kan ikke leses/parses | Advarsel i konsollen, faller tilbake på Excel |
-| PDF har feil Anleggsreferanse | Advarsell i konsollen, fakturaen hoppes over |
+| PDF har feil Anleggsreferanse | Advarsel i konsollen, fakturaen hoppes over |
 | Feil format på periodeargumenter | Feilmelding med eksempel, scriptet avslutter |
