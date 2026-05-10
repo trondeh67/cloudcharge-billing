@@ -343,7 +343,7 @@ def beregn(fra=None, til=None):
     output_fil = os.path.join(MAPPE, f"Fakturering_{periode_str}{tidsstempel}.xlsx")
     første_måned = gyldige_måneder[0]
     siste_måned = gyldige_måneder[-1]
-    skriv_excel(resultater, output_fil, første_måned, siste_måned)
+    skriv_excel(resultater, output_fil, første_måned, siste_måned, beboere)
 
     rader = [r for r in resultater if not r["_summary"]]
     print(f"\nTotalt forbruk : {sum(r['Forbruk (kWh)'] for r in rader):,.2f} kWh")
@@ -353,7 +353,7 @@ def beregn(fra=None, til=None):
 
 # ── Excel-output ───────────────────────────────────────────────────────────
 
-def skriv_excel(resultater, filsti, første_måned, siste_måned):
+def skriv_excel(resultater, filsti, første_måned, siste_måned, beboere):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Fakturering"
@@ -433,7 +433,7 @@ def skriv_excel(resultater, filsti, første_måned, siste_måned):
         c.fill = header_fill
         c.alignment = Alignment(horizontal="center")
 
-    # Summer forbruk og kostnad per ladepunkt (ekskluder summary-rader og nullrader)
+    # Summer forbruk og kostnad per ladepunkt — alle ladepunkter tas med, også de med null forbruk
     summer = {}
     for rad in resultater:
         if rad.get("_summary"):
@@ -444,12 +444,15 @@ def skriv_excel(resultater, filsti, første_måned, siste_måned):
                           "Forbruk (kWh)": 0.0, "Strømkost (kr)": 0.0}
         summer[lp]["Forbruk (kWh)"] += rad["Forbruk (kWh)"]
         summer[lp]["Strømkost (kr)"] += rad["Strømkost (kr)"]
+    # Ladepunkter som ikke finnes i resultater (ingen gyldige måneder) hentes fra beboere
+    for lp, beboer in beboere.items():
+        if lp not in summer:
+            summer[lp] = {"Navn": beboer["navn"], "Leilighet": beboer["hnummer"],
+                          "Forbruk (kWh)": 0.0, "Strømkost (kr)": 0.0}
 
     rad_nr2 = 4
     for lp in sorted(summer.keys()):
         s = summer[lp]
-        if s["Forbruk (kWh)"] == 0:
-            continue
         ws2.cell(row=rad_nr2, column=1, value=lp)
         ws2.cell(row=rad_nr2, column=2, value=s["Navn"])
         ws2.cell(row=rad_nr2, column=3, value=s["Leilighet"])
