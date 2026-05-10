@@ -36,8 +36,12 @@ Fane **Beboere**:
 Excel-fil `Fakturering_YYYYMMDD_HHMM.xlsx` med kolonner:
 `Ladepunkt | Navn | Leilighet | Måned | Forbruk (kWh) | Strømpris (øre/kWh) | Strømkost (kr)`
 
+Når et ladepunkt har forbruk i flere måneder, legges det til en **Sum-rad** (fet, blå bakgrunn) etter månedradene med totalt forbruk og total kostnad.
+
+Måneder uten registrert strømpris **utelates helt** fra rapporten — de vises ikke med tom kostnad. Scriptet skriver ut hvilke måneder som ble hoppet over.
+
 ## Viktige hensyn
 - Excel leses med `data_only=True` — formler evalueres ikke, kun cachet verdi leses. Excel-filen må ha vært åpnet og lagret i Excel for at verdiene skal være cachet.
-- Strømpris for inneværende måned legges inn manuelt i Excel etter at strømfaktura er godkjent i styret.com
-- CloudCharge har ikke offentlig API — CSV lastes ned manuelt fra portal.cloudcharge.se eller mottas på e-post
+- Strømpris for inneværende måned legges inn manuelt i Excel etter at strømfaktura er godkjent i styret.com. Siden faktura kommer måneden etter, vil siste måned i CloudCharge-data typisk mangle pris og utelates automatisk.
+- CloudCharge har ikke offentlig API — CSV lastes ned manuelt fra portal.cloudcharge.se eller mottas på e-post (månedlig automatisk rapport kan konfigureres i portalen).
 - Kjør `pip install -r requirements.txt` ved første gangs oppsett

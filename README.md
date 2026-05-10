@@ -28,6 +28,8 @@ Logg inn på [portal.cloudcharge.se](https://portal.cloudcharge.se/reports), vel
 
 Lagre og lukk Excel-filen før kjøring av scriptet.
 
+> Strømfaktura for en gitt måned er kjent først måneden etter. Måneder som mangler pris utelates automatisk fra rapporten — scriptet melder fra om hvilke måneder som hoppes over.
+
 ### 3. Kjør scriptet
 
 ```bash
@@ -62,13 +64,16 @@ Ikke i versjonskontroll (legg til manuelt):
 | Ladepunkt | Nummer 101–116 (100 + uttaksnummer fra CloudCharge) |
 | Navn | Beboernavn fra register |
 | Leilighet | H-nummer (f.eks. H0209) |
-| Måned | Månedsnavn og år (f.eks. Mai 2026) |
-| Forbruk (kWh) | Totalt forbruk i perioden |
-| Strømpris (øre/kWh) | Pris hentet fra Excel for aktuell måned |
-| Strømkost (kr) | Forbruk × pris / 100 |
+| Måned | Månedsnavn og år (f.eks. April 2026), eller **Sum** |
+| Forbruk (kWh) | Forbruk for måneden, eller totalt for Sum-raden |
+| Strømpris (øre/kWh) | Pris hentet fra Excel for aktuell måned (tom på Sum-rad) |
+| Strømkost (kr) | Forbruk × pris / 100, eller totalsum for Sum-raden |
 
-## Advarsler
+Når et ladepunkt har forbruk i flere måneder, legges en **Sum-rad** til etter månedradene med totalt forbruk og total kostnad for perioden.
 
-Scriptet varsler ved kjøring hvis:
-- En måned i CSV-dataene mangler strømpris i Excel
-- Et uttaksnummer i CSV ikke finnes i beboerregisteret
+## Advarsler ved kjøring
+
+| Situasjon | Hva skjer |
+|---|---|
+| Måned mangler strømpris i Excel | Måneden utelates fra rapporten, melding i konsollen |
+| Uttaksnummer i CSV finnes ikke i beboerregisteret | Raden hoppes over, advarsel i konsollen |
