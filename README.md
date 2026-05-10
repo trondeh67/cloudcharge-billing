@@ -66,8 +66,18 @@ Ikke i versjonskontroll (legg til manuelt):
 | Leilighet | H-nummer (f.eks. H0209) |
 | Måned | Månedsnavn og år (f.eks. April 2026), eller **Sum** |
 | Forbruk (kWh) | Forbruk for måneden, eller totalt for Sum-raden |
-| Strømpris inkl. 20% (øre/kWh) | Spotpris fra Excel × 1,20, tom på Sum-rad |
+| Strømpris inkl. 20% påslag (øre/kWh) | Spotpris fra Excel × 1,20, tom på Sum-rad |
 | Strømkost (kr) | Forbruk × pris / 100, eller totalsum for Sum-raden |
+
+## Månedstildeling ved sesjoner over månedsskiftet
+
+En ladeøkt tildeles måneden den **startet** (`Startdato`), ikke måneden den avsluttet.
+
+Begrunnelsen er todelt:
+- Mesteparten av energien overføres tidlig i en ladeøkt — bilen lader raskt til den er full og trickle-lader deretter
+- Lange sesjoner der kabelen blir stående i bilen over tid (f.eks. fra fredag til mandag) tilhører naturlig måneden ladingen begynte
+
+Dette er konsistent med hvordan tallene tidligere ble beregnet i PowerBI.
 
 ## Prispåslag
 
