@@ -109,7 +109,7 @@ def legg_til_summer(resultater):
                 "Leilighet": gruppe[0]["Leilighet"],
                 "Måned": "Sum",
                 "Forbruk (kWh)": total_kwh,
-                "Strømpris (øre/kWh)": None,
+                "Strømpris inkl. 20% påslag (øre/kWh)": None,
                 "Strømkost (kr)": total_kr,
                 "_summary": True,
             })
@@ -133,56 +133,52 @@ def beregn():
     data["Uttak"] = pd.to_numeric(data["Uttak nummer"], errors="coerce")
     data["BeboerNr"] = data["Uttak"] + 100
 
-    # Behold bare rader med gyldig dato, uttak og positivt forbruk
+    # Behold bare rader med gyldig dato og uttak
     data = data.dropna(subset=["Sluttdato_dt", "Uttak"])
-    data = data[data["Energi_kWh"] > 0]
 
     data["År"] = data["Sluttdato_dt"].dt.year.astype(int)
     data["Måned"] = data["Sluttdato_dt"].dt.month.astype(int)
     data["BeboerNr"] = data["BeboerNr"].astype(int)
 
-    # Summer forbruk per beboer per måned
+    # Finn alle måneder som finnes i CSV-dataene
+    måneder_i_csv = sorted(
+        {(int(r["År"]), int(r["Måned"])) for _, r in data.iterrows()}
+    )
+
+    # Filtrer til måneder som har registrert strømpris
+    gyldige_måneder = [m for m in måneder_i_csv if m in priser]
+    utelatte_måneder = [m for m in måneder_i_csv if m not in priser]
+
+    # Summer faktisk forbruk per beboer per måned (kun positive verdier)
+    forbruk_data = data[data["Energi_kWh"] > 0]
     gruppert = (
-        data.groupby(["BeboerNr", "År", "Måned"])["Energi_kWh"]
+        forbruk_data.groupby(["BeboerNr", "År", "Måned"])["Energi_kWh"]
         .sum()
-        .reset_index()
     )
 
     resultater = []
-    advarsler_pris = set()
+    advarsler_pris = {f"{MÅNEDER[m]} {å}" for å, m in utelatte_måneder}
     advarsler_beboer = set()
 
-    for _, rad in gruppert.iterrows():
-        beboer_nr = int(rad["BeboerNr"])
-        år = int(rad["År"])
-        måned = int(rad["Måned"])
-        forbruk = round(rad["Energi_kWh"], 2)
-
-        if beboer_nr not in beboere:
-            advarsler_beboer.add(f"Ukjent ladepunkt {beboer_nr} (CloudCharge uttak {beboer_nr - 100}) — mangler i beboerregisteret")
-            continue
-
-        pris_nøkkel = (år, måned)
-        if pris_nøkkel not in priser:
-            # Utelat måneder uten kjent strømpris
-            advarsler_pris.add(f"{MÅNEDER[måned]} {år}")
-            continue
-
+    # Én rad per beboer per gyldig måned — 0 hvis ingen lading
+    for beboer_nr in sorted(beboere.keys()):
         beboer = beboere[beboer_nr]
-        pris_ore = round(priser[pris_nøkkel] * PRISPÅSLAG, 4)
-        kostnad = round(forbruk * pris_ore / 100, 2)
+        for (år, måned) in gyldige_måneder:
+            forbruk = round(gruppert.get((beboer_nr, år, måned), 0.0), 2)
+            pris_ore = round(priser[(år, måned)] * PRISPÅSLAG, 4)
+            kostnad = round(forbruk * pris_ore / 100, 2)
 
-        resultater.append({
-            "Ladepunkt": beboer_nr,
-            "Navn": beboer["navn"],
-            "Leilighet": beboer["hnummer"],
-            "Måned": f"{MÅNEDER[måned]} {år}",
-            "_sort": (beboer_nr, år, måned),
-            "_summary": False,
-            "Forbruk (kWh)": forbruk,
-            "Strømpris (øre/kWh)": pris_ore,
-            "Strømkost (kr)": kostnad,
-        })
+            resultater.append({
+                "Ladepunkt": beboer_nr,
+                "Navn": beboer["navn"],
+                "Leilighet": beboer["hnummer"],
+                "Måned": f"{MÅNEDER[måned]} {år}",
+                "_sort": (beboer_nr, år, måned),
+                "_summary": False,
+                "Forbruk (kWh)": forbruk,
+                "Strømpris inkl. 20% påslag (øre/kWh)": pris_ore,
+                "Strømkost (kr)": kostnad,
+            })
 
     if advarsler_pris:
         print(f"\n  Følgende måneder er utelatt (strømpris ikke registrert): {', '.join(sorted(advarsler_pris))}")
@@ -220,9 +216,9 @@ def skriv_excel(resultater, filsti):
 
     kolonner = [
         "Ladepunkt", "Navn", "Leilighet", "Måned",
-        "Forbruk (kWh)", "Strømpris inkl. 20% (øre/kWh)", "Strømkost (kr)",
+        "Forbruk (kWh)", "Strømpris inkl. 20% påslag (øre/kWh)", "Strømkost (kr)",
     ]
-    kolonnebredder = [12, 32, 12, 18, 16, 26, 16]
+    kolonnebredder = [12, 32, 12, 18, 16, 32, 16]
 
     # Stiler
     header_font = Font(bold=True, color="FFFFFF")
@@ -269,7 +265,7 @@ def skriv_excel(resultater, filsti):
         sett(3, rad["Leilighet"])
         sett(4, rad["Måned"])
         sett(5, rad["Forbruk (kWh)"], "#,##0.00")
-        sett(6, rad["Strømpris (øre/kWh)"], "#,##0.00")
+        sett(6, rad["Strømpris inkl. 20% påslag (øre/kWh)"], "#,##0.00")
         sett(7, rad["Strømkost (kr)"], "#,##0.00")
 
     for col, bredde in enumerate(kolonnebredder, 1):
