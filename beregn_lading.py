@@ -51,6 +51,9 @@ def _sf(s):
     return float(str(s).replace("\xa0", "").replace(" ", "").replace(",", "."))
 
 
+FORVENTET_ANLEGGSREFERANSE = "Strøm Fellesareal"
+
+
 def les_pris_fra_pdf(filsti):
     """
     Leser strømpriskomponenter fra Ustekveikja Energi-faktura (PDF) og
@@ -61,17 +64,45 @@ def les_pris_fra_pdf(filsti):
         nettleie_m_mva = (energiledd_hverdag + elavgift) × 1.25
         totalt = spot_m_mva − strømstøtte_øre + nettleie_m_mva
 
-    Returnerer (år, måned, totalt_pr_kwh) eller None ved parsefeil.
+    Returnerer (år, måned, totalt_pr_kwh) eller None ved parsefeil eller
+    feil anleggsreferanse.
     """
+    filnavn = os.path.basename(filsti)
     with pdfplumber.open(filsti) as pdf:
         tekst = "\n".join(p.extract_text() or "" for p in pdf.pages)
 
+    # Sjekk at fakturaen gjelder riktig anlegg (Strøm Fellesareal)
+    m_anlegg = re.search(r"Anleggsreferanse\s*[:\-]?\s*(.+)", tekst)
+    if not m_anlegg:
+        print(f"  ! {filnavn}: Fant ikke Anleggsreferanse — hopper over.")
+        return None
+    anleggsref = m_anlegg.group(1).strip()
+    if FORVENTET_ANLEGGSREFERANSE.lower() not in anleggsref.lower():
+        print(f"  ! {filnavn}: Anleggsreferanse er '{anleggsref}' "
+              f"(forventet '{FORVENTET_ANLEGGSREFERANSE}') — hopper over.")
+        return None
+
     # Periode: hent startmåned fra Strømpris-linjen (DD.MM.YY-DD.MM.YY)
-    m = re.search(r"Strømpris\s+(\d{2})\.(\d{2})\.(\d{2})-", tekst)
+    m = re.search(r"Strømpris\s+(\d{2})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2})", tekst)
     if not m:
+        print(f"  ! {filnavn}: Fant ikke faktureringsperiode — hopper over.")
         return None
     måned_nr = int(m.group(2))
     år = 2000 + int(m.group(3))
+    slutt_måned = int(m.group(5))
+    slutt_år = 2000 + int(m.group(6))
+
+    # Beregn månedsdifferanse — normal faktura: start og slutt er én måned fra hverandre
+    # (f.eks. 01.04.26–01.05.26). Advar kun ved mer enn 1 måneds differanse.
+    start_måneder = år * 12 + måned_nr
+    slutt_måneder = slutt_år * 12 + slutt_måned
+    if slutt_måneder - start_måneder > 1:
+        print(f"  ! {filnavn}: Perioden dekker mer enn én måned "
+              f"({m.group(1)}.{m.group(2)}.{m.group(3)}–{m.group(4)}.{m.group(5)}.{m.group(6)}) "
+              f"— kontroller fakturaen manuelt.")
+        return None
+
+    print(f"  PDF {filnavn}: {MÅNEDER[måned_nr]} {år} (anlegg: {anleggsref})")
 
     # Forbruk kWh og spotpris øre/kWh (eks. MVA)
     m = re.search(
