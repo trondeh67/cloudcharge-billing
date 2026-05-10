@@ -31,6 +31,9 @@ MÅNEDER = {
     9: "September", 10: "Oktober", 11: "November", 12: "Desember",
 }
 
+# Påslag på spotpris for å dekke usikkerhet rundt ladetidspunkt på døgnet
+PRISPÅSLAG = 1.20
+
 
 def les_strompriser():
     wb = openpyxl.load_workbook(EXCEL_FIL, data_only=True)
@@ -166,7 +169,7 @@ def beregn():
             continue
 
         beboer = beboere[beboer_nr]
-        pris_ore = round(priser[pris_nøkkel], 4)
+        pris_ore = round(priser[pris_nøkkel] * PRISPÅSLAG, 4)
         kostnad = round(forbruk * pris_ore / 100, 2)
 
         resultater.append({
@@ -217,9 +220,9 @@ def skriv_excel(resultater, filsti):
 
     kolonner = [
         "Ladepunkt", "Navn", "Leilighet", "Måned",
-        "Forbruk (kWh)", "Strømpris (øre/kWh)", "Strømkost (kr)",
+        "Forbruk (kWh)", "Strømpris inkl. 20% (øre/kWh)", "Strømkost (kr)",
     ]
-    kolonnebredder = [12, 32, 12, 18, 16, 22, 16]
+    kolonnebredder = [12, 32, 12, 18, 16, 26, 16]
 
     # Stiler
     header_font = Font(bold=True, color="FFFFFF")

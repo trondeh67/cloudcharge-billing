@@ -34,11 +34,14 @@ Fane **Beboere**:
 
 ## Output
 Excel-fil `Fakturering_YYYYMMDD_HHMM.xlsx` med kolonner:
-`Ladepunkt | Navn | Leilighet | Måned | Forbruk (kWh) | Strømpris (øre/kWh) | Strømkost (kr)`
+`Ladepunkt | Navn | Leilighet | Måned | Forbruk (kWh) | Strømpris inkl. 20% (øre/kWh) | Strømkost (kr)`
 
 Når et ladepunkt har forbruk i flere måneder, legges det til en **Sum-rad** (fet, blå bakgrunn) etter månedradene med totalt forbruk og total kostnad.
 
 Måneder uten registrert strømpris **utelates helt** fra rapporten — de vises ikke med tom kostnad. Scriptet skriver ut hvilke måneder som ble hoppet over.
+
+## Prispåslag
+Spotprisen fra Excel multipliseres med **1,20 (20%)** før utregning. Påslaget kompenserer for at gjennomsnittlig spotpris brukes, men faktisk lading kan skje i dyrere timer på døgnet. Konstanten `PRISPÅSLAG` øverst i scriptet kan justeres ved behov.
 
 ## Viktige hensyn
 - Excel leses med `data_only=True` — formler evalueres ikke, kun cachet verdi leses. Excel-filen må ha vært åpnet og lagret i Excel for at verdiene skal være cachet.

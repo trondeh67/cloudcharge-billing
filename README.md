@@ -66,8 +66,14 @@ Ikke i versjonskontroll (legg til manuelt):
 | Leilighet | H-nummer (f.eks. H0209) |
 | Måned | Månedsnavn og år (f.eks. April 2026), eller **Sum** |
 | Forbruk (kWh) | Forbruk for måneden, eller totalt for Sum-raden |
-| Strømpris (øre/kWh) | Pris hentet fra Excel for aktuell måned (tom på Sum-rad) |
+| Strømpris inkl. 20% (øre/kWh) | Spotpris fra Excel × 1,20, tom på Sum-rad |
 | Strømkost (kr) | Forbruk × pris / 100, eller totalsum for Sum-raden |
+
+## Prispåslag
+
+Spotprisen fra Excel multipliseres med **20%** før kostnad beregnes. Bakgrunnen er at gjennomsnittlig månedspris brukes, men lading kan skje i dyrere timer på døgnet — påslaget dekker denne usikkerheten.
+
+Påslaget er definert som konstanten `PRISPÅSLAG = 1.20` øverst i `beregn_lading.py` og kan justeres der ved behov.
 
 Når et ladepunkt har forbruk i flere måneder, legges en **Sum-rad** til etter månedradene med totalt forbruk og total kostnad for perioden.
 
