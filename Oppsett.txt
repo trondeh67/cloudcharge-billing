@@ -1,0 +1,97 @@
+Oppsett av CloudCharge Billing
+================================
+
+Trinn-for-trinn-guide for å sette opp faktureringsscriptet fra bunnen av.
+For daglig bruk, se README.md som følger med scriptet.
+
+
+FORUTSETNINGER
+--------------
+- Windows 10/11 eller macOS
+- Tilgang til internett, CloudCharge-portalen og styret.com
+- Excel-filen "Elbillading Strøm+Beboere.xlsx" (leveres separat — inneholder persondata)
+
+
+STEG 1: INSTALLER PYTHON
+--------------------------
+Windows:
+  Last ned Python fra https://www.python.org/downloads/
+  Kjør installasjonsprogrammet.
+  VIKTIG: Huk av "Add Python to PATH" på første side av installasjonen.
+  Klikk "Install Now".
+
+macOS:
+  Åpne Terminal og skriv:
+    python3 --version
+  Hvis Python ikke er installert, følg instruksjonene som vises, eller last ned
+  fra https://www.python.org/downloads/ og kjør installasjonsprogrammet.
+
+
+STEG 2: LAST NED SCRIPTET FRA GITHUB
+--------------------------------------
+  Gå til: https://github.com/trondeh67/cloudcharge-billing
+  Klikk den grønne "Code"-knappen og velg "Download ZIP".
+  Pakk ut ZIP-filen til en valgfri mappe, f.eks.:
+    Windows: C:\Sameie\cloudcharge-billing\
+    macOS:   /Brukere/<brukernavn>/Sameie/cloudcharge-billing/
+
+  Etter utpakking skal mappen inneholde bl.a.:
+    beregn_lading.py
+    requirements.txt
+    Ladepunkter.csv
+    README.md
+
+
+STEG 3: INSTALLER NØDVENDIGE PYTHON-PAKKER
+--------------------------------------------
+  Åpne terminal i mappen du pakket ut scriptet:
+
+  Windows:
+    Hold Shift og høyreklikk i mappen i Filutforsker → "Åpne PowerShell-vindu her"
+    (eller søk etter "PowerShell" i Start-menyen, og naviger til mappen med cd)
+
+  macOS:
+    Høyreklikk på mappen i Finder → "Ny terminal ved mappe"
+    (krever macOS Monterey eller nyere; ellers åpne Terminal og naviger med cd)
+
+  Kjør kommandoen:
+    pip install -r requirements.txt
+
+  Du skal se at flere pakker lastes ned og installeres. Avsluttes uten feilmelding.
+
+
+STEG 4: LEGG TIL FILER SOM IKKE FØLGER MED SCRIPTET
+------------------------------------------------------
+a) Excel-filen med historiske strømpriser
+   Kopier "Elbillading Strøm+Beboere.xlsx" til scriptmappen
+   (samme mappe som beregn_lading.py).
+
+b) Opprett undermapper for data
+   Opprett disse to mappene inne i scriptmappen:
+     CloudCharge\    (hit legges CSV-filer fra CloudCharge)
+     Faktura\        (hit legges PDF-fakturaer fra Ustekveikja Energi)
+
+c) Last ned beboerregister fra styret.com
+   Logg inn på styret.com og gå til Enheter og kontakter → Enheter.
+   Klikk hamburgermenyen (☰) til høyre og velg "Eksporter til Excel".
+   Lagre filen direkte i scriptmappen (samme mappe som beregn_lading.py).
+   Filen navngis automatisk med dato, f.eks. "2026-05-15-alle seksjoner.csv".
+
+
+STEG 5: VERIFISER OPPSETTET
+-----------------------------
+  Kjør i terminalen:
+    python beregn_lading.py --help
+
+  Du skal se en beskrivelse av tilgjengelige parametre uten feilmeldinger.
+  Hvis du ser "python not found" på Windows, prøv:
+    py beregn_lading.py --help
+
+
+VIDERE BRUK
+-----------
+Se README.md i scriptmappen for instruksjoner om daglig bruk:
+  - Laste ned ladedata fra CloudCharge
+  - Legge inn PDF-fakturaer fra Ustekveikja Energi
+  - Oppdatere beboerregister fra styret.com ved eierskifter
+  - Kjøre scriptet og hente ut rapporten til regnskapsfører
