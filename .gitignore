@@ -7,6 +7,9 @@ Faktura/
 # Excel-filer med persondata og output
 Elbillading Strøm+Beboere.xlsx
 Fakturering_*.xlsx
+
+# Beboerregister med persondata - ikke i versjonskontroll
+*-alle seksjoner.csv
 ~$*.xlsx
 ~$*.xls
 

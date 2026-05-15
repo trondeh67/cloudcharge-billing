@@ -1,7 +1,17 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # CloudCharge Billing — Køhnkvartalet Sameie
 
 ## Prosjekt
 Python-script som beregner strømkostnader for elbil-ladepunkter i sameiet og genererer Excel-rapport til regnskapsfører. Fakturering skjer 4 ganger per år (kvartalsvis).
+
+## Oppsett
+```
+pip install -r requirements.txt
+```
+Ingen tester, ingen linting-konfig. Verifisering gjøres ved å kjøre scriptet mot testdata.
 
 ## Filstruktur
 ```
@@ -12,6 +22,28 @@ CloudCharge/                      # IKKE i git — CSV-filer fra CloudCharge
 Faktura/                          # IKKE i git — PDF-fakturaer fra strømleverandør
 Fakturering_*.xlsx                # IKKE i git — output til regnskapsfører
 ```
+
+## Kodearkitektur
+
+Alt ligger i `beregn_lading.py`. Flyten er:
+
+```
+parse_args()
+  └─ beregn()
+       ├─ les_strompriser()
+       │    ├─ les_pris_fra_pdf()   ← regex mot Ustekveikja Energi-format
+       │    └─ Excel-fallback       ← openpyxl, fane "Strømpriser", kolonne 11
+       ├─ les_ladepunkt_nokkel()    ← Ladepunkter.csv (ladepunkt_id → hnummer)
+       ├─ les_beboerliste()         ← nyeste *-alle seksjoner.csv (hnummer → Eier)
+       ├─ koblet_beboere()          ← slår sammen de to til {lp_id: {navn, hnummer}}
+       ├─ les_csv_filer()           ← pandas concat av alle *.csv i CloudCharge-mappen
+       ├─ legg_til_summer()         ← injiserer Sum-rad per ladepunkt
+       └─ skriv_excel()             ← fane "Fakturering" + fane "Oppsummert"
+```
+
+Nøkkelkonstanter øverst i scriptet:
+- `PRISPÅSLAG = 1.20` — 20% påslag på spotpris
+- `FORVENTET_ANLEGGSREFERANSE = "Strøm Fellesareal"` — filtrerer bort feil PDF-fakturaer
 
 ## Datakilder
 
@@ -35,16 +67,22 @@ totalt_pr_kWh = Total fakturabeløp inkl. MVA (kr) / Strømpris forbruk (kWh) ×
 - Leverandør: Ustekveikja Energi AS — regex-mønstre er tilpasset dette faktura-formatet
 - Fakturaer med feil Anleggsreferanse avvises automatisk med varsel
 
-### Excel: Elbillading Strøm+Beboere.xlsx (fallback for eldre måneder)
-Fane **Strømpriser**:
-- Kolonne 1: dato (første dag i måneden)
-- Kolonne 11 (siste): `Totalt pr/kwh` — brukes for måneder uten PDF-faktura
+### Ladepunkter.csv
+Ligger i samme mappe som scriptet. Kobler ladepunkt-ID til leilighetsnummer:
+- Kolonne `ladepunkt_id`: 101–116
+- Kolonne `hnummer`: leilighetsnummer (f.eks. H0209)
+- 16 ladepunkter totalt; nr 110 og 116 peker på samme H-nummer (samme beboer)
 
-Fane **Beboere**:
-- Kolonne `Nr`: ladepunktnummer = 100 + `Uttak nummer` fra CloudCharge (uttak 4 → Nr 104)
-- Kolonne `Navn`: beboernavn
-- Kolonne `H-nummer`: leilighetsnummer (f.eks. H0209)
-- 16 ladepunkter totalt (101–116); nr 110 og 116 tilhører samme beboer
+### `<YYYY-MM-DD>-alle seksjoner.csv` (beboerregister fra styret.com)
+Semikolonseparert, Windows-1252-kodet, med `sep=;` som første linje (Excel-eksport).
+Scriptet finner automatisk filen med nyeste dato i filnavnet (alfabetisk sortering).
+- Kobling mot `Ladepunkter.csv` via kolonne `H-nummer`
+- Beboernavn hentes fra kolonne `Eier` og brukes slik den står (kan inneholde flere navn separert med komma)
+
+### Excel: Elbillading Strøm+Beboere.xlsx (kun for strømpriser)
+Fane **Strømpriser** (fallback for måneder uten PDF-faktura):
+- Kolonne 1: dato (første dag i måneden)
+- Kolonne 11 (siste): `Totalt pr/kwh`
 
 ## Kjøring
 
@@ -88,4 +126,3 @@ Spotprisen multipliseres med **1,20 (20%)** før utregning. Påslaget kompensere
 - Excel leses med `data_only=True` — formler evalueres ikke, kun cachet verdi leses. Excel-filen må ha vært åpnet og lagret i Excel for at verdiene skal være cachet.
 - Siden strømfaktura kommer måneden etter, vil siste måned i CloudCharge-data typisk mangle pris og utelates automatisk.
 - CloudCharge har ikke offentlig API — CSV lastes ned manuelt fra portal.cloudcharge.se eller mottas på e-post (månedlig automatisk rapport kan konfigureres i portalen).
-- Kjør `pip install -r requirements.txt` ved første gangs oppsett

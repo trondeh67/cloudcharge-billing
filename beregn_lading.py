@@ -19,6 +19,7 @@ hentes fra Excel-fanen Strømpriser som fallback.
 """
 
 import argparse
+import csv
 import os
 import glob
 import re
@@ -32,6 +33,7 @@ from openpyxl.utils import get_column_letter
 
 MAPPE = os.path.dirname(os.path.abspath(__file__))
 EXCEL_FIL = os.path.join(MAPPE, "Elbillading Strøm+Beboere.xlsx")
+LADEPUNKTER_FIL = os.path.join(MAPPE, "Ladepunkter.csv")
 CLOUDCHARGE_MAPPE = os.path.join(MAPPE, "CloudCharge")
 FAKTURA_MAPPE = os.path.join(MAPPE, "Faktura")
 
@@ -156,19 +158,88 @@ def les_strompriser(faktura_mappe):
 
 # ── Beboere ────────────────────────────────────────────────────────────────
 
-def les_beboere():
-    wb = openpyxl.load_workbook(EXCEL_FIL, data_only=True)
-    ws = wb["Beboere"]
+def les_ladepunkt_nokkel():
+    filsti = LADEPUNKTER_FIL
+    if not os.path.isfile(filsti):
+        raise FileNotFoundError(
+            f"Fant ikke nøkkelfil {filsti}. Opprett {os.path.basename(filsti)} "
+            "i samme mappe som scriptet."
+        )
+
+    ladepunkter = {}
+    with open(filsti, encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            if i == 0:
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            deler = [bit.strip() for bit in line.split(",")]
+            if len(deler) != 2:
+                raise ValueError(
+                    f"Ugyldig rad i {filsti} på linje {i + 1}: '{line}'. "
+                    "Forventet format: ladepunkt_id,hnummer"
+                )
+            lp_str, hnummer = deler
+            if not lp_str or not hnummer:
+                raise ValueError(
+                    f"Ugyldig rad i {filsti} på linje {i + 1}: '{line}'. "
+                    "Begge kolonnene må være utfylt."
+                )
+            try:
+                lp = int(lp_str)
+            except ValueError:
+                raise ValueError(
+                    f"Ugyldig ladepunkt-id i {filsti} på linje {i + 1}: '{lp_str}'"
+                )
+            if lp in ladepunkter:
+                raise ValueError(f"Duplikat ladepunkt-id {lp} i {filsti}.")
+            ladepunkter[lp] = hnummer.strip().upper()
+
+    forventet = set(range(101, 117))
+    mangler = forventet - set(ladepunkter.keys())
+    if mangler:
+        print(f"  ! Mangler ladepunkt-id(er) i {filsti}: {', '.join(map(str, sorted(mangler)))}")
+
+    if not ladepunkter:
+        raise ValueError(f"Ingen ladepunktdata funnet i {filsti}.")
+
+    return ladepunkter
+
+
+def les_beboerliste():
+    # Finn nyeste <YYYY-MM-DD>-alle seksjoner.csv (alfabetisk sortering = kronologisk)
+    filer = sorted(glob.glob(os.path.join(MAPPE, "*-alle seksjoner.csv")))
+    if not filer:
+        raise FileNotFoundError(
+            f"Fant ingen '*-alle seksjoner.csv' i {MAPPE}. "
+            "Last ned fra styret.com og legg filen i samme mappe som scriptet."
+        )
+    seksjoner_fil = filer[-1]
+    print(f"  Beboere fra: {os.path.basename(seksjoner_fil)}")
+
+    # Hopp over "sep=;"-linje, semikolonseparert, Windows-1252
+    with open(seksjoner_fil, encoding="cp1252", newline="") as f:
+        linjer = f.read().splitlines()
+    if linjer and linjer[0].lower().startswith("sep="):
+        linjer = linjer[1:]
+
+    beboerliste = {}
+    for row in csv.DictReader(linjer, delimiter=";"):
+        hnr = row["H-nummer"].strip()
+        if hnr:
+            beboerliste[hnr] = row["Eier"].strip()
+    return beboerliste
+
+
+def koblet_beboere(ladepunkt_nokkel, beboerliste):
     beboere = {}
-    for i, row in enumerate(ws.iter_rows(values_only=True)):
-        if i == 0:
-            continue
-        nr, navn, hnummer = row[0], row[1], row[2]
-        if nr and navn:
-            beboere[int(nr)] = {
-                "navn": str(navn).strip(),
-                "hnummer": str(hnummer).strip() if hnummer else "",
-            }
+    for lp in sorted(ladepunkt_nokkel.keys()):
+        hnummer = ladepunkt_nokkel[lp]
+        navn = beboerliste.get(hnummer, "")
+        if not navn:
+            print(f"  ! Ingen beboer funnet for {hnummer} (ladepunkt {lp})")
+        beboere[int(lp)] = {"hnummer": hnummer, "navn": navn}
     return beboere
 
 
@@ -242,8 +313,11 @@ def beregn(fra=None, til=None, faktura_mappe=None, cloudcharge_mappe=None):
     print("Leser strømpriser (PDF + Excel)...")
     priser = les_strompriser(faktura_mappe)
 
-    print("Leser beboerregister fra Excel...")
-    beboere = les_beboere()
+    print("Leser ladepunkt-nøkkel fra CSV...")
+    ladepunkt_nokkel = les_ladepunkt_nokkel()
+    print("Leser beboerliste fra CSV...")
+    beboerliste = les_beboerliste()
+    beboere = koblet_beboere(ladepunkt_nokkel, beboerliste)
 
     print("Leser CloudCharge CSV...")
     data = les_csv_filer(cloudcharge_mappe)
